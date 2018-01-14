@@ -1,0 +1,7 @@
+build
+.vscode
+_/
+_install
+*.dir
+x64
+.vs
