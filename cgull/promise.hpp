@@ -134,7 +134,9 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_promi
 template< typename _Callback > inline
 void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_auto_tag)
 {
-    _finishLocal(1, std::make_any(_wrapCallbackArgs(callback)));
+    auto result = _wrapCallbackArgs(callback);
+
+    _finishLocal(1, std::make_any<decltype(result)>( std::move(result) ));
 }
 
 

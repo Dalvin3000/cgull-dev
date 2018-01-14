@@ -268,7 +268,12 @@ TEST(Promise, construct)
 
 TEST(Promise, then)
 {
-    auto next = Promise{}.then(
-        [a = 10](int prev) { std::cout << prev + a; }
-    );
+    { auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; }); };
+    { auto next = Promise{}.then([]() { }); };
+    { auto next = Promise{}.then([]() { return 1; }); };
+    { auto next = Promise{}.then([]() { return std::string{}; }); };
+    { auto next = Promise{}.then([]() { return std::any{}; }); };
+    { auto next = Promise{}.then([]() { return Promise{}; }); };
+    { auto next = Promise{}.then([](const std::string&) {}); };
+    { auto next = Promise{}.then([](std::string) {}); };
 };
