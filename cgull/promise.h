@@ -119,7 +119,7 @@ private:
 
     //! Removes std::any_cast exception
     template< typename _T >
-    static const _T& _unwrapCallbackArg(std::any& value);
+    static const _T& _unwrapArg(std::any& value);
 };
 
 

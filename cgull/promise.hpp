@@ -182,12 +182,12 @@ template<
 auto Promise::_wrapCallbackArgs(_Callback& callback, CGull::guts::args_count_1_auto)
     -> typename _CallbackTraits::result_type
 {
-    return callback(_unwrapCallbackArg< typename _CallbackTraits::template arg<0>::type >(_valueLocal()));
+    return callback(_unwrapArg< typename _CallbackTraits::template arg<0>::type >(_valueLocal()));
 }
 
 
 template< typename _T >
-const _T& Promise::_unwrapCallbackArg(std::any& value)
+const _T& Promise::_unwrapArg(std::any& value)
 {
     try
     {
