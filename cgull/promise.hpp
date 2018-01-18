@@ -1,21 +1,125 @@
 
 
+
+// ====  private  ====
+
+
 inline
 Promise::Promise(const PrivateType& from)
     : _d(from)
 { }
 
 
+template <
+    typename _Resolve,
+    typename _Context
+> inline
+Promise Promise::_then(_Resolve&& onResolve, _Context context)
+{
+    (void)context; //!< \todo implement contexts
+
+    auto D = _d.data();
+
+    // unnecessary check
+    assert((bool)onResolve);
+
+    // wrap finisher.
+    // \param abort If true - then only captures will be cleared.
+    CGull::CallbackFunctor functor =
+        [inner = *this, onResolve = std::move(onResolve)](bool abort) mutable
+        {
+            if(!abort)
+                inner._wrapRescue(onResolve);
+
+            inner._d.reset();
+        };
+
+    // chain link
+    Promise next;
+
+    // we don't need to call handler cause 'next' was just created
+    next._handleBindInner(_d, CGull::LastBound);
+
+    D->handler->setFinisher(_d, std::move(functor), true);
+
+    return next;
+}
+
+
+inline
+void Promise::_handleFulfilled()
+{
+    _d->handler->fulfilled(_d);
+}
+
+
+inline
+void Promise::_handleBindInner(Promise inner, CGull::WaitType waitType)
+{
+    inner._d->outer = _d;
+
+    _d->handler->bindInner(_d, inner._d, waitType);
+}
+
+
+inline
+void Promise::_handleAbort()
+{
+    _d->handler->abort(_d);
+}
+
+
+inline
+void Promise::_handleDeleteThis()
+{
+    _d->handler->deleteThis(_d);
+}
+
+
+inline
+void Promise::_handleSetFinisher(CGull::CallbackFunctor&& callback, bool isResolve)
+{
+    _d->handler->setFinisher(_d, std::forward<decltype(callback)>(callback), isResolve);
+}
+
+
+template< > inline
+void Promise::_handleFulfill(std::any&& value, bool isResolve)
+{
+    _d->fulfillLocal(std::forward<std::any>(value), isResolve);
+}
+
+
+template< typename _T > inline
+void Promise::_handleFulfill(_T&& value, bool isResolve)
+{
+    _d->fulfillLocal(std::make_any<_T>(std::forward<_T>(value)), isResolve);
+}
+
+
+template< typename _T > inline
+void Promise::_handleFulfill(const _T& value, bool isResolve)
+{
+    _d->fulfillLocal(std::make_any<_T>(value), isResolve);
+}
+
+
+
+// ====  public  ====
+
+
 inline
 Promise::Promise()
     : _d(new CGull::guts::PromisePrivate{})
-{ }
+{
+    _d->handler = CGull::Handler::forThisThread(); //!< \todo implement contexts
+}
 
 
 inline
 Promise::~Promise()
 {
-    _abort();
+    _handleDeleteThis();
 }
 
 
@@ -29,44 +133,41 @@ Promise Promise::then(_Resolve&& onResolve)
 }
 
 
-template <
-    typename _Resolve,
-    typename _Context
-> inline
-Promise Promise::_then(_Resolve&& onResolve, _Context context)
+inline
+Promise Promise::resolve(const std::any& value)
 {
-    (void)context; //! \todo implement contexts
+    _handleFulfill(value, true);
 
-    auto D = _d.data();
-
-    // can't set finisher twice
-    assert(D->state.load() >= CGull::NotFinished && D->state.load() <= CGull::RejectedFinished);
-
-    // unnecessary check
-    assert((bool)onResolve);
-
-    // wrap finisher.
-    // \param abort If true - then only captures will be cleared.
-    D->finisher =
-        [inner = *this, onResolve = std::move(onResolve)](int abort) mutable
-        {
-            if(!abort)
-                inner._wrapRescue(onResolve);
-
-            inner._d.reset();
-        };
-
-    // chain link
-    Promise next;
-
-    next._bindInner(*this, CGull::LastBound);
-
-    // barrier & handle async ops
-    D->state.store(CGull::AwaitingResolve);
-    //D->handler->setFinisher();
-
-    return next;
+    return *this;
 }
+
+
+inline
+Promise Promise::resolve(std::any&& value)
+{
+    _handleFulfill(std::forward<std::any>(value), true);
+
+    return *this;
+}
+
+
+inline
+Promise Promise::reject(const std::any& value)
+{
+    _handleFulfill(value, false);
+
+    return *this;
+}
+
+
+inline
+Promise Promise::reject(std::any&& value)
+{
+    _handleFulfill(std::forward<std::any>(value), false);
+
+    return *this;
+}
+
 
 
 // ====  helpers  ====
@@ -81,11 +182,11 @@ void Promise::_wrapRescue(_Callback callback)
     }
     catch(const std::exception& e)
     {
-        _finishLocal(0, e.what());
+        _outer()._handleFulfill(e.what(), 0);
     }
     catch(const char* e)
     {
-        _finishLocal(0, e);
+        _outer()._handleFulfill(e, 0);
     }
     catch(...)
     {
@@ -108,7 +209,7 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_void_
 {
     _wrapCallbackArgs(callback);
 
-    _finishLocal(1, std::any{});
+    _outer()._handleFulfill(std::move(std::any{}), 1);
 }
 
 
@@ -116,7 +217,15 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_void_
 template< typename _Callback > inline
 void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_any_tag)
 {
-    _finishLocal(1, std::move(_wrapCallbackArgs(callback)));
+    _outer()._handleFulfill(std::move(_wrapCallbackArgs(callback)), 1);
+}
+
+
+//! \note lambda [](...) -> auto
+template< typename _Callback > inline
+void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_auto_tag)
+{
+    _outer()._handleFulfill(std::move(_wrapCallbackArgs(callback)), 1); //! \todo same as std::any?
 }
 
 
@@ -126,17 +235,7 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_promi
 {
     Promise inner = _wrapCallbackArgs(callback);
 
-    _bindInner(inner, CGull::LastBound);
-}
-
-
-//! \note lambda [](...) -> auto
-template< typename _Callback > inline
-void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_auto_tag)
-{
-    auto result = _wrapCallbackArgs(callback);
-
-    _finishLocal(1, std::make_any<decltype(result)>( std::move(result) ));
+    _handleBindInner(inner, CGull::LastBound);
 }
 
 
@@ -189,7 +288,7 @@ auto Promise::_wrapCallbackArgs(_Callback& callback, CGull::guts::args_count_1_a
 
 
 template< typename _T >
-const _T& Promise::_unwrapArg(std::any& value)
+const _T& Promise::_unwrapArg(const std::any& value)
 {
     try
     {

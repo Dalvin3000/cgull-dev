@@ -2,6 +2,7 @@
 
 #include "function_traits.h"
 #include "promise_private.h"
+#include "sync_handler.h"
 
 #if defined(CGULL_USE_NAMESPACE)
 namespace CGull
@@ -14,8 +15,9 @@ class /*CGULL_API*/ Promise
 {
     using PrivateType = CGull::guts::PromisePrivate::Type;
 
-    //! Constructs promise private data.
+    //! Constructs promise from raw private data.
     Promise(const PrivateType& from);
+
 
 public:
     Promise();
@@ -27,35 +29,50 @@ public:
     >
     Promise then(_Resolve&& onResolve);
 
-private:
-    template <
-        typename _Resolve,
-        typename _Context
-    >
-    Promise _then(_Resolve&& onResolve, _Context context);
+    Promise resolve(const std::any& value);
+    Promise resolve(std::any&& value);
+
+    Promise reject(const std::any& value);
+    Promise reject(std::any&& value);
 
 
 private:
     PrivateType _d;
 
 
-    void _finishLocal(bool isResolve, std::any&& finisherResult)
-    { };
+    template <
+        typename _Resolve,
+        typename _Context
+    >
+    Promise _then(_Resolve&& onResolve, _Context context);
 
-    void _bindInner(Promise inner, CGull::WaitType waitType)
-    { };
-
-    void _abort()
-    { };
-
-    //! \return promise value without any sync.
-    std::any& _valueLocal()
+    Promise _outer() const
     {
-        static std::any r;
-        return r; //! \todo fix
+        auto D = _d.constData();
+
+        if(D->outer)
+            return D->outer;
+
+        return Promise{};
     }
 
+    void _handleFulfilled();
+    void _handleBindInner(Promise inner, CGull::WaitType waitType);
+    void _handleAbort();
+    void _handleDeleteThis();
+    void _handleSetFinisher(CGull::CallbackFunctor&& callback, bool isResolve);
+    template< typename _T >
+    void _handleFulfill(_T&& value, bool isResolve);
+    template< typename _T >
+    void _handleFulfill(const _T& value, bool isResolve);
 
+
+    //! \return promise value without any sync.
+    const std::any& _valueLocal()
+    { return _d->result; }
+
+
+private:
     // ====  helpers  ====
 
 
@@ -76,13 +93,13 @@ private:
     template< typename _Callback >
     void _wrapCallbackReturn(_Callback& callback, CGull::guts::return_any_tag);
 
-    //! \note lambda [](...) -> Promise
-    template< typename _Callback >
-    void _wrapCallbackReturn(_Callback& callback, CGull::guts::return_promise_tag);
-
     //! \note lambda [](...) -> auto
     template< typename _Callback >
     void _wrapCallbackReturn(_Callback& callback, CGull::guts::return_auto_tag);
+
+    //! \note lambda [](...) -> Promise
+    template< typename _Callback >
+    void _wrapCallbackReturn(_Callback& callback, CGull::guts::return_promise_tag);
 
 
     //! Wraps finisher callback's argumets.
@@ -119,9 +136,8 @@ private:
 
     //! Removes std::any_cast exception
     template< typename _T >
-    static const _T& _unwrapArg(std::any& value);
+    static const _T& _unwrapArg(const std::any& value);
 };
-
 
 
 #include "promise.hpp"

@@ -9,12 +9,16 @@
 #endif
 
 #include "common.h"
-#include "handler.h"
 
 
-namespace CGull::guts
+namespace CGull
 {
-    class PromisePrivate;
+    namespace guts
+    {
+        class PromisePrivate;
+    };
+
+    class Handler;
 };
 
 
@@ -28,6 +32,7 @@ namespace CGull::guts
     {
         CGULL_USE_ALLOCATOR(PromisePrivate);
 
+        // disable copy and move
         PromisePrivate(const PromisePrivate&) = delete;
         PromisePrivate(PromisePrivate&&) = delete;
         PromisePrivate& operator=(const PromisePrivate&) = delete;
@@ -37,34 +42,57 @@ namespace CGull::guts
         using Type = shared_data_ptr<PromisePrivate>;
 
 
-        std::any            result;
+        std::any                result;
 
-        AtomicPromiseState  state   = { CGull::NotFinished };
-        AtomicWaitType      wait    = { CGull::All };
+        AtomicFinishState       finishState         = { CGull::NotFinished };
+        AtomicFulfillmentState  fulfillmentState    = { CGull::NotFulfilled };
+        AtomicWaitType          wait                = { CGull::All };
 
-        Type                outer;
-        std::vector<Type>   inners;
+        Type                    outer;
+        std::vector<Type>       inners;
 
-        CallbackFunctor     finisher;
+        CallbackFunctor         finisher;
 
-        Handler*            handler = nullptr;
+        Handler*                handler = nullptr;
+
+        bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
+        bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
+        bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
+        bool    isFinished() const  { return finishState.load() >= CGull::Thenned; };
+
 
 #if defined(CGULL_DEBUG_GUTS)
-        PromisePrivate()
-        {
-            std::cout << "PromisePrivate::_ctor()\n";
-        }
-
-        ~PromisePrivate()
-        {
-            std::cout << "PromisePrivate::_dtor()\n";
-        }
+        PromisePrivate();
+        ~PromisePrivate();
 #else
         PromisePrivate() = default;
 #endif
 
+        //! Sets then/rescue callback.
+        void setFinisherLocal(CallbackFunctor&& callback, bool isResolve);
 
+        //! Binds new inner dependency.
+        void bindInnerLocal(Type inner, CGull::WaitType waitType);
+
+        //! Resolves/Rejects this promise with value \a result.
+        void fulfillLocal(std::any&& value, bool isResolve);
+
+        //! Resolves/Rejects this promise if it's an outer promise.
+        void checkFulfillmentLocal();
+
+        //! Clears inner dependencies and finisher.
+        void abortLocal();
+
+        //! Clears inner dependencies.
+        void unbindInners();
+
+
+    private:
+        void _checkInners();
+        void _finish(CGull::FinishState fnState);
+        void _propagate();
     };
+
 
 };
 

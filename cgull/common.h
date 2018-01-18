@@ -107,19 +107,28 @@
 
 namespace CGull
 {
-    //! Represents promise finish state.
-    enum PromiseState
+    //! Represents promise finish finishState.
+    enum FinishState
     {
         NotFinished = 0,
-        ResolvedFinished,
-        RejectedFinished,
         AwaitingResolve,
         AwaitingReject,
+        Thenned,
+        Rescued,
+    };
+
+    using AtomicFinishState = std::atomic<FinishState>;
+
+    //! Represents promise fulfillment finishState.
+    enum FulfillmentState
+    {
+        NotFulfilled = 0,
+        FulfillingNow,
         Resolved,
         Rejected,
     };
 
-    using AtomicPromiseState = std::atomic<PromiseState>;
+    using AtomicFulfillmentState = std::atomic<FulfillmentState>;
 
     //! Represents promise wait type for complex nested promises.
     enum WaitType
@@ -133,11 +142,17 @@ namespace CGull
     using AtomicWaitType = std::atomic<WaitType>;
 
     //! Lamda return sugar.
-    static constexpr bool Break = true;
+    static constexpr bool Abort = true;
     //! Lamda return sugar.
-    static constexpr bool Continue = false;
+    static constexpr bool Execute = false;
 
     using AnyList = std::vector<std::any>;
+
+    //! Operation callback handler type.
+    //! \param abort used for resource release on functor deletion.
+    using Callback = void(bool abort);
+    using CallbackFunctor = std::function<Callback>;
+
 };
 
 
@@ -145,21 +160,6 @@ namespace CGull
 
 namespace CGull::guts
 {
-    //! Operation callback handler type.
-    //! \param abort used for resource release on functor deletion.
-    using Callback = void (bool abort);
-    using CallbackFunctor = std::function<Callback>;
-
-
-
-    //! Operation callback handler type.
-    //! \param abort used for resource release on functor deletion.
-    //! \param result contains operation execution result. Type of \a result specified by operation.
-    //using Callback2 = void (bool abort, std::any result);
-    //using CallbackFunctorResult = std::function<Callback2>;
-
-
-
     //! \return [value] true if type \a _T is one of \a _OtherT types.
     template<typename _T, typename ... _OtherT>
     struct one_of_types : std::disjunction< std::is_same<_OtherT, _T> ... >::type {};
@@ -245,7 +245,7 @@ namespace CGull::guts
 };
 
 
-//CGULL_EXTERN template struct CGULL_API std::atomic<CGull::PromiseState>;
+//CGULL_EXTERN template struct CGULL_API std::atomic<CGull::FinishState>;
 //CGULL_EXTERN template struct CGULL_API std::atomic<CGull::WaitType>;
 //CGULL_EXTERN template class CGULL_API std::function<CGull::guts::Callback>;
 //CGULL_EXTERN template class CGULL_API std::function<CGull::guts::Callback2>;
