@@ -63,7 +63,7 @@ TEST(guts, static_asserts)
     EXPECT_EQ(sizeof(int), sizeof(CGull::guts::shared_data));
     EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::shared_data_ptr<CGull::guts::shared_data>));
 
-    EXPECT_EQ(sizeof(int), sizeof(std::atomic<CGull::PromiseState>));
+    EXPECT_EQ(sizeof(int), sizeof(std::atomic<CGull::FinishState>));
 }
 
 
@@ -120,6 +120,8 @@ auto guts__callback_traits__return_tags__fn(_Cb cb)
 
 TEST(guts__callback_traits, static_asserts__return_tags)
 {
+    CGull::SyncHandler::useForThisThread();
+
     {
         auto r = guts__callback_traits__return_tags__fn([]() { return 0UL; });
         static_assert(std::is_same< decltype(r), int >::value, "`function_traits<>::result_tag` default doesn't work");
@@ -258,6 +260,8 @@ TEST(Promise, test)
 
 TEST(Promise, construct)
 {
+    CGull::SyncHandler::useForThisThread();
+
     Promise a;
 
     Promise b = a;
@@ -266,8 +270,37 @@ TEST(Promise, construct)
 };
 
 
+TEST(Promise, resolve_simple)
+{
+    {
+        std::any a = 1;
+
+        std::any b = a;
+
+        int bb = std::any_cast<int>(b);
+        int aa = std::any_cast<int>(a);
+    }
+
+    CGull::SyncHandler::useForThisThread();
+
+    Promise a;
+
+    Promise b = a
+        .then([](int v) { std::cout << v << '\n'; return 4; })
+        .then([](int v) { std::cout << v << '\n'; })
+        ;
+
+    a.resolve(5);
+
+    Promise{}.resolve(2).then([](int v) { std::cout << v << '\n'; });
+
+};
+
+
 TEST(Promise, then)
 {
+    CGull::SyncHandler::useForThisThread();
+
     { auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; }); };
     { auto next = Promise{}.then([]() { }); };
     { auto next = Promise{}.then([]() { return 1; }); };
