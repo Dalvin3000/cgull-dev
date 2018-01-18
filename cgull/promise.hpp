@@ -97,6 +97,13 @@ void Promise::_handleFulfill(_T&& value, bool isResolve)
 }
 
 
+template< > inline
+void Promise::_handleFulfill(const std::any& value, bool isResolve)
+{
+    _d->fulfillLocal(std::any{value}, isResolve);
+}
+
+
 template< typename _T > inline
 void Promise::_handleFulfill(const _T& value, bool isResolve)
 {
