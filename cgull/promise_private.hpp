@@ -42,6 +42,8 @@ namespace CGull::guts
         if(st)
             return;
 
+        assert(!finisher);
+
         finisher = std::move(callback);
         finishState.store(isResolve ? CGull::AwaitingResolve : CGull::AwaitingReject);
 
@@ -62,12 +64,13 @@ namespace CGull::guts
 
 
     inline
-    void PromisePrivate::bindOuterLocal(Type _outer)
+    void PromisePrivate::bindOuterLocal(Type outer)
     {
-        outer = _outer;
 
         if(isFulFilled())
-            _propagate();
+            outer->handler->tryFinish(outer);
+        else
+            outers.push_back(outer);
     }
 
 
@@ -87,7 +90,10 @@ namespace CGull::guts
                 fulfillmentState.store(CGull::Resolved);
 
                 if(finishState == CGull::AwaitingResolve)
+                {
                     finishState.store(CGull::Thenned);
+                    _propagate();
+                }
                 else
                     abortLocal();
             }
@@ -96,15 +102,18 @@ namespace CGull::guts
                 fulfillmentState.store(CGull::Rejected);
 
                 if(finishState == CGull::AwaitingReject)
+                {
                     finishState.store(CGull::Rescued);
+                    _propagate();
+                }
                 else
                     abortLocal();
             }
             else
+            {
                 fulfillmentState.store(CGull::Aborted);
-
-            if(outer)
-                _propagate();
+                abortLocal();
+            };
         };
     }
 
@@ -127,7 +136,11 @@ namespace CGull::guts
             if(innersFFState == CGull::Resolved)
             {
                 if(fnState == CGull::AwaitingResolve)
+                {
+                    assert(!!finisher);
                     finisher(CGull::Execute, std::move(innersFFResult));
+                    finisher = nullptr;
+                }
                 else
                 {
                     fulfillLocal(std::move(innersFFResult), CGull::Resolved);
@@ -137,7 +150,11 @@ namespace CGull::guts
             else if(innersFFState == CGull::Rejected)
             {
                 if(fnState == CGull::AwaitingReject)
+                {
+                    assert(!!finisher);
                     finisher(CGull::Execute, std::move(innersFFResult));
+                    finisher = nullptr;
+                }
                 else
                 {
                     fulfillLocal(std::move(innersFFResult), CGull::Rejected);
@@ -149,26 +166,6 @@ namespace CGull::guts
                 fulfillLocal(std::move(innersFFResult), CGull::Aborted);
                 abortLocal();
             };
-        };
-    }
-
-
-    //inline
-    //void PromisePrivate::_finishLocal(CGull::FinishState fnState, std::any&& innersResult)
-    //{
-    //    assert((bool)finisher);
-
-    //    finisher(CGull::Execute, std::move(innersResult));
-    //}
-
-
-    inline
-    void PromisePrivate::_propagate()
-    {
-        if(outer)
-        {
-            outer->handler->checkFulfillment(outer);
-            outer.reset();
         };
     }
 
@@ -186,6 +183,8 @@ namespace CGull::guts
             finishState.store(CGull::Skipped);
 
         unbindInners();
+        _propagate();
+        unbindOuters();
     }
 
 
@@ -198,9 +197,24 @@ namespace CGull::guts
 
 
     inline
-    void PromisePrivate::unbindOuter()
+    void PromisePrivate::unbindOuters()
     {
-        _propagate();
+        if(!outers.empty())
+            std::swap(outers, InnersList{});
+    }
+
+
+    inline
+    void PromisePrivate::deleteThisLocal()
+    {
+        const auto refs = _ref.load();
+
+        if((refs == 2+outers.size() && inners.empty()) //< check for root promise
+            || refs <= 1)
+        {
+            if(!isFulFilled())
+                fulfillLocal(std::move(std::any{}), CGull::Aborted);
+        };
     }
 
 
@@ -294,5 +308,13 @@ namespace CGull::guts
         };
 
         return { CGull::NotFulfilled, std::any{} };
+    }
+
+
+    inline
+    void PromisePrivate::_propagate()
+    {
+        for(const auto outer : outers)
+            outer->handler->tryFinish(outer);
     }
 };

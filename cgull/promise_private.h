@@ -45,7 +45,6 @@ namespace CGull::guts
     public:
         using Type = shared_data_ptr<PromisePrivate>;
         using InnersList = std::vector<Type>;
-        //using InnersResult = std::tuple<CGull::FulfillmentState, std::any>;
 
 
         std::any                result;
@@ -55,7 +54,7 @@ namespace CGull::guts
         AtomicFulfillmentState  fulfillmentState    = { CGull::NotFulfilled };
         AtomicWaitType          wait                = { CGull::All };
 
-        Type                    outer;
+        InnersList              outers;
         InnersList              inners;
 
         CallbackFunctor         finisher;
@@ -97,13 +96,16 @@ namespace CGull::guts
         //! Clears inner dependencies.
         void unbindInners();
 
-        //! Clears outer dependency.
-        void unbindOuter();
+        //! Clears outer dependencies and propagates result to them.
+        void unbindOuters();
+
+        //! Checks promise for utilization state.
+        void deleteThisLocal();
 
 
     private:
-        std::tuple<CGull::FulfillmentState, std::any> _checkInnersFulfillment();
-        //void _finishLocal(CGull::FinishState fnState, std::any&& innersResult);
+        std::tuple<CGull::FulfillmentState, std::any>
+             _checkInnersFulfillment();
         void _propagate();
     };
 

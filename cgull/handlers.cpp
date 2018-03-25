@@ -68,14 +68,7 @@ namespace CGull
 
     void SyncHandler::deleteThis(PrivateType self)
     {
-        if( (self->_ref.load() == 3 && self->inners.empty()) //< outer root promise
-            || self->_ref.load() <= 1)
-        {
-            abort(self);
-
-            if(!self->isFulFilled())
-                self->fulfillLocal(std::move(std::any{}), CGull::Aborted);
-        };
+        self->deleteThisLocal();
     }
 
     void SyncHandler::useForThisThread()

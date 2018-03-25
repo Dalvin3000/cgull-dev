@@ -161,7 +161,6 @@ inline
 Promise& Promise::resolve(const std::any& value)
 {
     _handleFulfill(value, true);
-    _handleAbort();
 
     return *this;
 }
@@ -171,7 +170,6 @@ inline
 Promise& Promise::resolve(std::any&& value)
 {
     _handleFulfill(std::forward<std::any>(value), true);
-    _handleAbort();
 
     return *this;
 }
@@ -181,7 +179,6 @@ inline
 Promise& Promise::reject(const std::any& value)
 {
     _handleFulfill(value, false);
-    _handleAbort();
 
     return *this;
 }
@@ -191,7 +188,6 @@ inline
 Promise& Promise::reject(std::any&& value)
 {
     _handleFulfill(std::forward<std::any>(value), false);
-    _handleAbort();
 
     return *this;
 }

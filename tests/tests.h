@@ -67,6 +67,24 @@ TEST(guts__ref_counter, base)
 }
 
 
+TEST(guts__shared_data, base)
+{
+    using namespace CGull::guts;
+
+    shared_data v;
+
+    EXPECT_EQ(0, v._ref);
+
+    v._ref.ref();
+
+    EXPECT_EQ(1, v._ref);
+
+    shared_data v2{v};
+
+    EXPECT_EQ(0, v2._ref);
+}
+
+
 TEST(guts, static_asserts)
 {
     EXPECT_EQ(sizeof(int), sizeof(CGull::guts::shared_data));
@@ -393,6 +411,7 @@ TEST(PromiseBase, then_simple)
             .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
             ;
         a.resolve(5);
+
         b = b.then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
             .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
             ;
@@ -455,12 +474,107 @@ TEST(PromiseBase, several_thens)
 
         EXPECT_EQ(10, thenCalled);
     }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a.resolve(312);
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; })
+            .then([&](int v) { EXPECT_EQ(444, v); thenCalled.fetch_add(2); });
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
+            .then([&](int v) { EXPECT_EQ(555, v); thenCalled.fetch_add(4); });
+
+        EXPECT_EQ(10, thenCalled);
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; })
+            .then([&](int v) { EXPECT_EQ(444, v); thenCalled.fetch_add(2); });
+
+        a.resolve(312);
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
+            .then([&](int v) { EXPECT_EQ(555, v); thenCalled.fetch_add(4); });
+
+        EXPECT_EQ(10, thenCalled);
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        auto b = a.then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; });
+
+        a.resolve(312);
+
+        b.then([&](int v) { EXPECT_EQ(444, v); thenCalled.fetch_add(2); });
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
+            .then([&](int v) { EXPECT_EQ(555, v); thenCalled.fetch_add(4); });
+
+        EXPECT_EQ(10, thenCalled);
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
+            .then([&](int v) { EXPECT_EQ(555, v); thenCalled.fetch_add(4); });
+
+        auto b = a.then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; });
+
+        a.resolve(312);
+
+        b.then([&](int v) { EXPECT_EQ(444, v); thenCalled.fetch_add(2); });
+
+        EXPECT_EQ(10, thenCalled);
+    }
+    CHECK_CGULL_PROMISE_GUTS;
 };
 
 
 TEST(PromiseBase, abort)
 {
     CGull::SyncHandler::useForThisThread();
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a
+            .then([&]() { thenCalled.fetch_add(1); })
+            .then([&]() { thenCalled.fetch_add(1); });
+
+        a
+            .then([&]() { thenCalled.fetch_add(1); })
+            .then([&]() { thenCalled.fetch_add(1); });
+
+        EXPECT_EQ(0, thenCalled);
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
 
     {
         Promise{};
@@ -490,35 +604,15 @@ TEST(PromiseBase, abort)
     }
 
     CHECK_CGULL_PROMISE_GUTS;
-
-    {
-        std::atomic_int thenCalled = 0;
-
-        Promise a;
-
-        a
-            .then([&]() { thenCalled.fetch_add(1); })
-            .then([&]() { thenCalled.fetch_add(1); });
-
-        a
-            .then([&]() { thenCalled.fetch_add(1); })
-            .then([&]() { thenCalled.fetch_add(1); });
-
-        EXPECT_EQ(0, thenCalled);
-    }
-
-    CHECK_CGULL_PROMISE_GUTS;
 };
 
 
-TEST(PromiseBase, then)
+TEST(PromiseBase, then_compilation)
 {
     {
         CGull::SyncHandler::useForThisThread();
 
-        {
-            auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; });
-        };
+        { auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; }); };
         { auto next = Promise{}.then([]() { }); };
         { auto next = Promise{}.then([]() { return 1; }); };
         { auto next = Promise{}.then([]() { return std::string{}; }); };
