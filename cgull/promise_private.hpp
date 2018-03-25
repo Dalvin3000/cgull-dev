@@ -193,7 +193,7 @@ namespace CGull::guts
     void PromisePrivate::unbindInners()
     {
         if(!inners.empty())
-            inners = InnersList{};
+            std::swap(inners, InnersList{});
     }
 
 

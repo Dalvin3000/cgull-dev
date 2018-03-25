@@ -289,6 +289,7 @@ TEST(PromiseBase, construct)
 
 TEST(PromiseBase, fulfill_simple)
 {
+    CGull::SyncHandler::useForThisThread();
 
     {
         Promise p; p.resolve(2316);
@@ -425,6 +426,8 @@ TEST(PromiseBase, then_simple)
 
 TEST(PromiseBase, several_thens)
 {
+    CGull::SyncHandler::useForThisThread();
+
     /*
     a = new Promise((r)=>{r(5);});
     a.then((r)=>console.log(r)).then(()=>console.log(1));

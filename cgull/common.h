@@ -179,6 +179,9 @@ namespace CGull::guts
     //! Slightly sugared version of \a atomic_int.
     class ref_counter : public std::atomic<int>
     {
+        ref_counter(const ref_counter&) = delete;
+        ref_counter& operator=(const ref_counter&) = delete;
+
     public:
         ref_counter()   : std::atomic<int>(0) { }
 

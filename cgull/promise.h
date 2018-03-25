@@ -70,7 +70,7 @@ private:
     Promise _then(_Resolve&& onResolve, _Context context);
 
     //! \return outer promise assuming it was already set.
-    Promise _outer() const      { assert(_d.constData()->outer); return _d.constData()->outer; }
+    //Promise _outer() const      { assert(_d.constData()->outer); return _d.constData()->outer; }
 
     //! \return promise value without any sync.
     const std::any& _valueLocal() const { return _d->result; }
