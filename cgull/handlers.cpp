@@ -51,9 +51,9 @@ namespace CGull
         self->bindOuterLocal(outer);
     }
 
-    void SyncHandler::checkFulfillment(PrivateType self)
+    void SyncHandler::tryFinish(PrivateType self)
     {
-        self->checkFulfillmentLocal();
+        self->tryFinishLocal();
     }
 
     void SyncHandler::abort(PrivateType self)

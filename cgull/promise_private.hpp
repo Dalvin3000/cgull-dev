@@ -47,7 +47,7 @@ namespace CGull::guts
 
         // Call finisher only if promise resolved
         if(fulfillmentState)
-            checkFulfillmentLocal();
+            tryFinishLocal();
     }
 
 
@@ -57,7 +57,7 @@ namespace CGull::guts
         inners.push_back(inner);
         wait = waitType;
 
-        checkFulfillmentLocal();
+        //tryFinishLocal();
     }
 
 
@@ -110,7 +110,7 @@ namespace CGull::guts
 
 
     inline
-    void PromisePrivate::checkFulfillmentLocal()
+    void PromisePrivate::tryFinishLocal()
     {
         const auto fnState = finishState.load();
 
@@ -121,7 +121,7 @@ namespace CGull::guts
         // check inners for outer promise or just return if promise not chained
         if(inners.size())
         {
-            auto [innersFFState, innersFFResult] = _checkInners();
+            auto [innersFFState, innersFFResult] = _checkInnersFulfillment();
 
             // finish or try propagate to outer. skip if not fulfilled
             if(innersFFState == CGull::Resolved)
@@ -205,7 +205,7 @@ namespace CGull::guts
 
 
     inline
-    std::tuple<CGull::FulfillmentState, std::any> PromisePrivate::_checkInners()
+    std::tuple<CGull::FulfillmentState, std::any> PromisePrivate::_checkInnersFulfillment()
     {
         const auto wt = wait.load();
         const auto innersCount = inners.size();

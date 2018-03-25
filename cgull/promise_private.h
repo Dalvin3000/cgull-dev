@@ -89,7 +89,7 @@ namespace CGull::guts
         void fulfillLocal(std::any&& value, CGull::FulfillmentState state);
 
         //! Resolves/Rejects this promise if it's an outer promise.
-        void checkFulfillmentLocal();
+        void tryFinishLocal();
 
         //! Clears inner dependencies and finisher.
         void abortLocal();
@@ -102,7 +102,7 @@ namespace CGull::guts
 
 
     private:
-        std::tuple<CGull::FulfillmentState, std::any> _checkInners();
+        std::tuple<CGull::FulfillmentState, std::any> _checkInnersFulfillment();
         //void _finishLocal(CGull::FinishState fnState, std::any&& innersResult);
         void _propagate();
     };

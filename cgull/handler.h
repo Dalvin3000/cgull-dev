@@ -39,7 +39,7 @@ namespace CGull
         virtual void setFinisher(PrivateType self, CallbackFunctor&& callback, bool isResolve) = 0;
         virtual void bindInner(PrivateType self, PrivateType inner, CGull::WaitType) = 0;
         virtual void bindOuter(PrivateType self, PrivateType outer) = 0;
-        virtual void checkFulfillment(PrivateType self) = 0;
+        virtual void tryFinish(PrivateType self) = 0;
         virtual void abort(PrivateType self) = 0;
         virtual void fulfill(PrivateType self, std::any&& value, bool isResolve) = 0;
         virtual void deleteThis(PrivateType self) = 0;

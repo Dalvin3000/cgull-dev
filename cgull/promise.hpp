@@ -58,7 +58,7 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context)
 inline
 void Promise::_handleFulfilled()
 {
-    _d->handler->checkFulfillment(_d);
+    _d->handler->tryFinish(_d);
 }
 
 
