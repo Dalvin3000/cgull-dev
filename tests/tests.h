@@ -2,6 +2,15 @@
 
 #include <Promise>
 
+#if defined(CGULL_DEBUG_GUTS)
+#   define CHECK_CGULL_PROMISE_GUTS \
+    EXPECT_EQ(0, CGull::guts::_debugPrivateCounter()); \
+    CGull::guts::_debugPrivateCounter().store(0);
+#else
+#   define CHECK_CGULL_PROMISE_GUTS
+#endif
+
+
 
 #if 1
 template< typename _T >
@@ -123,21 +132,25 @@ TEST(guts__callback_traits, static_asserts__return_tags)
     CGull::SyncHandler::useForThisThread();
 
     {
-        auto r = guts__callback_traits__return_tags__fn([]() { return 0UL; });
-        static_assert(std::is_same< decltype(r), int >::value, "`function_traits<>::result_tag` default doesn't work");
+        {
+            auto r = guts__callback_traits__return_tags__fn([]() { return 0UL; });
+            static_assert(std::is_same< decltype(r), int >::value, "`function_traits<>::result_tag` default doesn't work");
+        }
+        {
+            auto r = guts__callback_traits__return_tags__fn([]() { });
+            static_assert(std::is_same< decltype(r), int64_t >::value, "`function_traits<>::result_tag` for `void` doesn't work");
+        }
+        {
+            auto r = guts__callback_traits__return_tags__fn([]() { return std::any{}; });
+            static_assert(std::is_same< decltype(r), std::any >::value, "`function_traits<>::result_tag` for `any` doesn't work");
+        }
+        {
+            auto r = guts__callback_traits__return_tags__fn([]() { return Promise{}; });
+            static_assert(std::is_same< decltype(r), Promise >::value, "`function_traits<>::result_tag` for `Promise` doesn't work");
+        }
     }
-    {
-        auto r = guts__callback_traits__return_tags__fn([]() { });
-        static_assert(std::is_same< decltype(r), int64_t >::value, "`function_traits<>::result_tag` for `void` doesn't work");
-    }
-    {
-        auto r = guts__callback_traits__return_tags__fn([]() { return std::any{}; });
-        static_assert(std::is_same< decltype(r), std::any >::value, "`function_traits<>::result_tag` for `any` doesn't work");
-    }
-    {
-        auto r = guts__callback_traits__return_tags__fn([]() { return Promise{}; });
-        static_assert(std::is_same< decltype(r), Promise >::value, "`function_traits<>::result_tag` for `Promise` doesn't work");
-    }
+
+    CHECK_CGULL_PROMISE_GUTS;
 }
 
 
@@ -258,55 +271,259 @@ TEST(Promise, test)
 };
 #endif
 
-TEST(Promise, construct)
-{
-    CGull::SyncHandler::useForThisThread();
-
-    Promise a;
-
-    Promise b = a;
-
-    Promise c = std::move(b);
-};
-
-
-TEST(Promise, resolve_simple)
+TEST(PromiseBase, construct)
 {
     {
-        std::any a = 1;
+        CGull::SyncHandler::useForThisThread();
 
-        std::any b = a;
+        Promise a;
 
-        int bb = std::any_cast<int>(b);
-        int aa = std::any_cast<int>(a);
+        Promise b = a;
+
+        Promise c = std::move(b);
     }
 
-    CGull::SyncHandler::useForThisThread();
+    CHECK_CGULL_PROMISE_GUTS;
+};
 
-    Promise a;
 
-    Promise b = a
-        .then([](int v) { std::cout << v << '\n'; return 4; })
-        .then([](int v) { std::cout << v << '\n'; })
-        ;
+TEST(PromiseBase, fulfill_simple)
+{
 
-    a.resolve(5);
+    {
+        Promise p; p.resolve(2316);
 
-    Promise{}.resolve(2).then([](int v) { std::cout << v << '\n'; });
+        EXPECT_EQ(2316 , p.value<int>() );
+        EXPECT_EQ(true , p.isResolved() );
+        EXPECT_EQ(false, p.isRejected() );
+        EXPECT_EQ(true , p.isFinished() );
+        EXPECT_EQ(true , p.isFulFilled());
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        Promise p; p.reject(2317);
+
+        EXPECT_EQ(2317 , p.value<int>() );
+        EXPECT_EQ(false, p.isResolved() );
+        EXPECT_EQ(true , p.isRejected() );
+        EXPECT_EQ(true , p.isFinished() );
+        EXPECT_EQ(true , p.isFulFilled());
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.resolve(2318)
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2318, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(1, thenCalled);
+
+        EXPECT_EQ(2318 , p1.value<int>() );
+        EXPECT_EQ(true , p1.isResolved() );
+        EXPECT_EQ(false, p1.isRejected() );
+        EXPECT_EQ(true , p1.isFinished() );
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(false, p2.value().has_value() );
+        EXPECT_EQ(true , p2.isResolved() );
+        EXPECT_EQ(false, p2.isRejected() );
+        EXPECT_EQ(true , p2.isFinished() );
+        EXPECT_EQ(true , p2.isFulFilled());
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.reject(2319)
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(0, thenCalled);
+
+        EXPECT_EQ(2319 , p1.value<int>() );
+        EXPECT_EQ(false, p1.isResolved() );
+        EXPECT_EQ(true , p1.isRejected() );
+        EXPECT_EQ(true , p1.isFinished() );
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(false, p2.isResolved() );
+        EXPECT_EQ(true , p2.isRejected() );
+        EXPECT_EQ(true , p2.isFinished() );
+        EXPECT_EQ(true , p2.isFulFilled());
+    }
+    CHECK_CGULL_PROMISE_GUTS;
 
 };
 
 
-TEST(Promise, then)
+TEST(PromiseBase, then_simple)
+{
+    {
+        std::atomic_int thenCalled = 0;
+
+        CGull::SyncHandler::useForThisThread();
+
+        Promise a;
+        Promise b = a
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            ;
+
+        a.resolve(5);
+
+        EXPECT_EQ(0x07, thenCalled);
+
+        std::cout << '\n';
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        CGull::SyncHandler::useForThisThread();
+
+        Promise a;
+        Promise b = a
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
+            ;
+        a.resolve(5);
+        b = b.then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            ;
+
+        EXPECT_EQ(0x07, thenCalled);
+
+        std::cout << '\n';
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        CGull::SyncHandler::useForThisThread();
+
+        Promise a;
+        Promise b = a.resolve(5)
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            ;
+
+        EXPECT_EQ(0x07, thenCalled);
+
+        std::cout << '\n';
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+};
+
+
+TEST(PromiseBase, several_thens)
+{
+    /*
+    a = new Promise((r)=>{r(5);});
+    a.then((r)=>console.log(r)).then(()=>console.log(1));
+    a.then((r)=>console.log(r)).then(()=>console.log(2));
+    VM362:2 5
+    VM362:3 5
+    VM362:2 1
+    VM362:3 2
+    */
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; })
+            .then([&](int v) { EXPECT_EQ(444, v); thenCalled.fetch_add(2); });
+
+        a
+            .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
+            .then([&](int v) { EXPECT_EQ(555, v); thenCalled.fetch_add(4); });
+
+        a.resolve(312);
+
+        EXPECT_EQ(10, thenCalled);
+    }
+};
+
+
+TEST(PromiseBase, abort)
 {
     CGull::SyncHandler::useForThisThread();
 
-    { auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; }); };
-    { auto next = Promise{}.then([]() { }); };
-    { auto next = Promise{}.then([]() { return 1; }); };
-    { auto next = Promise{}.then([]() { return std::string{}; }); };
-    { auto next = Promise{}.then([]() { return std::any{}; }); };
-    { auto next = Promise{}.then([]() { return Promise{}; }); };
-    { auto next = Promise{}.then([](const std::string&) {}); };
-    { auto next = Promise{}.then([](std::string) {}); };
+    {
+        Promise{};
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise{}
+            .then([&]() { thenCalled.store(1); });
+
+        EXPECT_EQ(0, thenCalled);
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise{}
+            .then([&]() { thenCalled.fetch_add(1); })
+            .then([&]() { thenCalled.fetch_add(1); });
+
+        EXPECT_EQ(0, thenCalled);
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise a;
+
+        a
+            .then([&]() { thenCalled.fetch_add(1); })
+            .then([&]() { thenCalled.fetch_add(1); });
+
+        a
+            .then([&]() { thenCalled.fetch_add(1); })
+            .then([&]() { thenCalled.fetch_add(1); });
+
+        EXPECT_EQ(0, thenCalled);
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
+};
+
+
+TEST(PromiseBase, then)
+{
+    {
+        CGull::SyncHandler::useForThisThread();
+
+        {
+            auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; });
+        };
+        { auto next = Promise{}.then([]() { }); };
+        { auto next = Promise{}.then([]() { return 1; }); };
+        { auto next = Promise{}.then([]() { return std::string{}; }); };
+        { auto next = Promise{}.then([]() { return std::any{}; }); };
+        { auto next = Promise{}.then([]() { return Promise{}; }); };
+        { auto next = Promise{}.then([](const std::string&) {}); };
+        { auto next = Promise{}.then([](std::string) {}); };
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
 };

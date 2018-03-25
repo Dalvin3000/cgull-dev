@@ -13,7 +13,7 @@ namespace CGull
 #endif
 
 
-
+//! \note All public functions int this class are thread-safe.
 class /*CGULL_API*/ Promise
 {
     using PrivateType = CGull::guts::PromisePrivate::Type;
@@ -32,11 +32,31 @@ public:
     >
     Promise then(_Resolve&& onResolve);
 
-    Promise resolve(const std::any& value);
-    Promise resolve(std::any&& value);
+    Promise& resolve(const std::any& value);
+    Promise& resolve(std::any&& value);
 
-    Promise reject(const std::any& value);
-    Promise reject(std::any&& value);
+    Promise& reject(const std::any& value);
+    Promise& reject(std::any&& value);
+
+    //! \todo add synchronization
+    //! \note Sync method.
+    std::any value() const      { return _d->result; };
+    //! \todo add synchronization
+    //! \note Sync method.
+    template< typename _T >
+    _T value() const            { return std::move(std::any_cast<_T>(_d->result)); };
+
+    //! \note Sync method.
+    bool isFulFilled() const    { return _d->isFulFilled(); };
+    //! \note Sync method.
+    bool isResolved() const     { return _d->isResolved(); };
+    //! \note Sync method.
+    bool isRejected() const     { return _d->isRejected(); };
+    //! \note Sync method.
+    bool isAborted() const      { return _d->isAborted(); };
+    //! \note Sync method.
+    bool isFinished() const     { return _d->isFinished(); };
+
 
 
 private:
@@ -49,18 +69,18 @@ private:
     >
     Promise _then(_Resolve&& onResolve, _Context context);
 
-    Promise _outer() const
-    {
-        auto D = _d.constData();
+    //! \return outer promise assuming it was already set.
+    Promise _outer() const      { assert(_d.constData()->outer); return _d.constData()->outer; }
 
-        if(D->outer)
-            return D->outer;
+    //! \return promise value without any sync.
+    const std::any& _valueLocal() const { return _d->result; }
 
-        return Promise{};
-    }
+
+    // handler calls
 
     void _handleFulfilled();
     void _handleBindInner(Promise inner, CGull::WaitType waitType);
+    void _handleBindOuter(Promise outer);
     void _handleAbort();
     void _handleDeleteThis();
     void _handleSetFinisher(CGull::CallbackFunctor&& callback, bool isResolve);
@@ -70,10 +90,6 @@ private:
     void _handleFulfill(const _T& value, bool isResolve);
 
 
-    //! \return promise value without any sync.
-    const std::any& _valueLocal()
-    { return _d->result; }
-
 
 private:
     // ====  helpers  ====
@@ -82,6 +98,7 @@ private:
     //! Exception catcher.
     template< typename _Callback >
     void _wrapRescue(_Callback callback);
+
 
 
     //! Wraps finisher callback's return type.
@@ -103,6 +120,7 @@ private:
     //! \note lambda [](...) -> Promise
     template< typename _Callback >
     void _wrapCallbackReturn(_Callback& callback, CGull::guts::return_promise_tag);
+
 
 
     //! Wraps finisher callback's argumets.
@@ -137,9 +155,12 @@ private:
     auto _wrapCallbackArgs(_Callback& callback, CGull::guts::args_count_1_auto)
         -> typename _CallbackTraits::result_type;
 
+
+
     //! Removes std::any_cast exception
     template< typename _T >
     static const _T& _unwrapArg(const std::any& value);
+
 };
 
 

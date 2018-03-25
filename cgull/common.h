@@ -118,6 +118,7 @@ namespace CGull
         AwaitingReject,
         Thenned,
         Rescued,
+        Skipped,
     };
 
     using AtomicFinishState = std::atomic<FinishState>;
@@ -129,6 +130,7 @@ namespace CGull
         FulfillingNow,
         Resolved,
         Rejected,
+        Aborted,
     };
 
     using AtomicFulfillmentState = std::atomic<FulfillmentState>;
@@ -153,7 +155,7 @@ namespace CGull
 
     //! Operation callback handler type.
     //! \param abort used for resource release on functor deletion.
-    using Callback = void(bool abort);
+    using Callback = void(bool abort, std::any&& innersResult);
     using CallbackFunctor = std::function<Callback>;
 
 };
@@ -163,6 +165,11 @@ namespace CGull
 
 namespace CGull::guts
 {
+#if defined(CGULL_DEBUG_GUTS)
+    CGULL_API std::atomic_int& _debugPrivateCounter();
+#endif
+
+
     //! \return [value] true if type \a _T is one of \a _OtherT types.
     template<typename _T, typename ... _OtherT>
     struct one_of_types : std::disjunction< std::is_same<_OtherT, _T> ... >::type {};
@@ -185,8 +192,6 @@ namespace CGull::guts
     //! Base class for pimpl implementation data.
     class shared_data
     {
-        friend class shared_data_ptr_base;
-
         shared_data& operator=(const shared_data&) = delete;
 
     public:

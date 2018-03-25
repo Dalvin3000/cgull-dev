@@ -7,6 +7,11 @@
 
 namespace CGull
 {
+    namespace guts
+    {
+#if defined(CGULL_DEBUG_GUTS)
+#endif
+    };
 
     Handler* Handler::forThisThread()
     {
@@ -41,7 +46,12 @@ namespace CGull
         self->bindInnerLocal(inner, waitType);
     }
 
-    void SyncHandler::fulfilled(PrivateType self)
+    void SyncHandler::bindOuter(PrivateType self, PrivateType outer)
+    {
+        self->bindOuterLocal(outer);
+    }
+
+    void SyncHandler::checkFulfillment(PrivateType self)
     {
         self->checkFulfillmentLocal();
     }
@@ -51,9 +61,21 @@ namespace CGull
         self->abortLocal();
     }
 
+    void SyncHandler::fulfill(PrivateType self, std::any&& value, bool isResolve)
+    {
+        self->fulfillLocal(std::forward<std::any>(value), isResolve ? CGull::Resolved : CGull::Rejected);
+    }
+
     void SyncHandler::deleteThis(PrivateType self)
     {
-        //! \todo fix this
+        if( (self->_ref.load() == 3 && self->inners.empty()) //< outer root promise
+            || self->_ref.load() <= 1)
+        {
+            abort(self);
+
+            if(!self->isFulFilled())
+                self->fulfillLocal(std::move(std::any{}), CGull::Aborted);
+        };
     }
 
     void SyncHandler::useForThisThread()

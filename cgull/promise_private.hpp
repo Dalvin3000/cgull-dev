@@ -10,14 +10,22 @@ namespace CGull::guts
     inline
     PromisePrivate::PromisePrivate()
     {
-        std::cout << "PromisePrivate::_ctor()\n";
+        std::cout
+            << "PromisePrivate::_ctor() -- "
+            << std::dec << (++_debugPrivateCounter())
+            << " -- " << std::hex << this << std::dec
+            << "\n";
     }
 
 
     inline
     PromisePrivate::~PromisePrivate()
     {
-        std::cout << "PromisePrivate::_dtor()\n";
+        std::cout
+            << "PromisePrivate::_dtor() -- "
+            << std::dec << (--_debugPrivateCounter())
+            << " -- " << std::hex << this << std::dec
+            << "\n";
     }
 
 #endif
@@ -54,16 +62,49 @@ namespace CGull::guts
 
 
     inline
-    void PromisePrivate::fulfillLocal(std::any&& value, bool isResolve)
+    void PromisePrivate::bindOuterLocal(Type _outer)
+    {
+        outer = _outer;
+
+        if(isFulFilled())
+            _propagate();
+    }
+
+
+    inline
+    void PromisePrivate::fulfillLocal(std::any&& value, CGull::FulfillmentState state)
     {
         auto tmp = CGull::NotFulfilled;
 
         if(fulfillmentState.compare_exchange_strong(tmp, CGull::FulfillingNow, std::memory_order_acquire))
         {
-            result = value; // copy
-            fulfillmentState.store(isResolve ? CGull::Resolved : CGull::Rejected);
+            unbindInners();
 
-            checkFulfillmentLocal();
+            result = std::move(value);
+
+            if(state == CGull::Resolved)
+            {
+                fulfillmentState.store(CGull::Resolved);
+
+                if(finishState == CGull::AwaitingResolve)
+                    finishState.store(CGull::Thenned);
+                else
+                    abortLocal();
+            }
+            else if(state == CGull::Rejected)
+            {
+                fulfillmentState.store(CGull::Rejected);
+
+                if(finishState == CGull::AwaitingReject)
+                    finishState.store(CGull::Rescued);
+                else
+                    abortLocal();
+            }
+            else
+                fulfillmentState.store(CGull::Aborted);
+
+            if(outer)
+                _propagate();
         };
     }
 
@@ -71,40 +112,63 @@ namespace CGull::guts
     inline
     void PromisePrivate::checkFulfillmentLocal()
     {
-        // check inners for outer promise or just return if promise not chained
-        if(!fulfillmentState)
-        {
-            if(inners.size())
-                _checkInners();
-            else
-                return;
-        };
-
         const auto fnState = finishState.load();
 
         // check if promise already finished
-        if(!fnState || fnState >= CGull::Thenned)
+        if(fnState >= CGull::Thenned)
             return;
 
-        // wait async fulfillment
-        //while(fulfillmentState.load() == CGull::FulfillingNow);
-
-        const auto ffState = fulfillmentState.load();
-
-        // finish or try propagate to outer
-        if(ffState == CGull::Resolved)
+        // check inners for outer promise or just return if promise not chained
+        if(inners.size())
         {
-            if(fnState == CGull::AwaitingResolve)
-                _finish(CGull::Thenned);
-            else
-                _propagate();
-        }
-        else
+            auto [innersFFState, innersFFResult] = _checkInners();
+
+            // finish or try propagate to outer. skip if not fulfilled
+            if(innersFFState == CGull::Resolved)
+            {
+                if(fnState == CGull::AwaitingResolve)
+                    finisher(CGull::Execute, std::move(innersFFResult));
+                else
+                {
+                    fulfillLocal(std::move(innersFFResult), CGull::Resolved);
+                    abortLocal();
+                };
+            }
+            else if(innersFFState == CGull::Rejected)
+            {
+                if(fnState == CGull::AwaitingReject)
+                    finisher(CGull::Execute, std::move(innersFFResult));
+                else
+                {
+                    fulfillLocal(std::move(innersFFResult), CGull::Rejected);
+                    abortLocal();
+                };
+            }
+            else if(innersFFState == CGull::Aborted)
+            {
+                fulfillLocal(std::move(innersFFResult), CGull::Aborted);
+                abortLocal();
+            };
+        };
+    }
+
+
+    //inline
+    //void PromisePrivate::_finishLocal(CGull::FinishState fnState, std::any&& innersResult)
+    //{
+    //    assert((bool)finisher);
+
+    //    finisher(CGull::Execute, std::move(innersResult));
+    //}
+
+
+    inline
+    void PromisePrivate::_propagate()
+    {
+        if(outer)
         {
-            if(fnState == CGull::AwaitingReject)
-                _finish(CGull::Rescued);
-            else
-                _propagate();
+            outer->handler->checkFulfillment(outer);
+            outer.reset();
         };
     }
 
@@ -114,9 +178,12 @@ namespace CGull::guts
     {
         if(finisher)
         {
-            finisher(CGull::Abort);
+            finisher(CGull::Abort, std::move(std::any{}));
             finisher = nullptr;
         };
+
+        if(finishState < CGull::Thenned)
+            finishState.store(CGull::Skipped);
 
         unbindInners();
     }
@@ -125,13 +192,20 @@ namespace CGull::guts
     inline
     void PromisePrivate::unbindInners()
     {
-        for(size_t i = 0, ie = inners.size(); i < ie; ++i)
-            inners.at(i)->outer.reset();
+        if(!inners.empty())
+            inners = InnersList{};
     }
 
 
     inline
-    void PromisePrivate::_checkInners()
+    void PromisePrivate::unbindOuter()
+    {
+        _propagate();
+    }
+
+
+    inline
+    std::tuple<CGull::FulfillmentState, std::any> PromisePrivate::_checkInners()
     {
         const auto wt = wait.load();
         const auto innersCount = inners.size();
@@ -148,21 +222,15 @@ namespace CGull::guts
                 {
                     const auto inn = inners.at(i);
 
-                    if(!inn->isFulFilled()) // don't need to check finish at this moment
+                    if(!inn->isFulFilled())    // don't need to check finish at this moment
                         somethingNotFinished = true;
-                    else if(inn->isResolved())
-                    {
-                        // resolved inner found
-                        result = inn->result;
-                        fulfillmentState.store(CGull::Resolved);
-
-                        return;
-                    };
+                    else if(inn->isResolved()) // resolved inner found
+                        return { CGull::Resolved, inn->result };
                 };
 
                 // still have not finished and fulfilled inners
                 if(somethingNotFinished)
-                    return;
+                    return { CGull::NotFulfilled, std::any{} };
 
                 // reject on no resolved promise
                 CGull::AnyList results;
@@ -172,10 +240,7 @@ namespace CGull::guts
                 for(int i = 0; i < innersCount; ++i)
                     results.emplace_back(inners.at(i)->result);
 
-                result = results;
-                fulfillmentState.store(CGull::Rejected);
-
-                return;
+                return { CGull::Rejected, std::any{std::move(results)} };
             }
         case CGull::All:
             {
@@ -185,21 +250,15 @@ namespace CGull::guts
                 {
                     const auto inn = inners.at(i);
 
-                    if(inn->isRejected())
-                    {
-                        // one of inners rejected
-                        result = inn->result;
-                        fulfillmentState.store(CGull::Rejected);
-
-                        return;
-                    }
-                    else if(!inn->isFinished())
+                    if(inn->isRejected())   // one of inners rejected
+                        return { CGull::Rejected, inn->result };
+                    else if(!inn->isFulFilled())
                         somethingNotFinished = true;
                 };
 
                 // must wait all promises to resolve
                 if(somethingNotFinished)
-                    return;
+                    return { CGull::NotFulfilled, std::any{} };
 
                 // resolve on all resolved promises
                 CGull::AnyList results;
@@ -209,10 +268,7 @@ namespace CGull::guts
                 for(int i = 0; i < innersCount; ++i)
                     results.emplace_back(inners.at(i)->result);
 
-                result = results;
-                fulfillmentState.store(CGull::Resolved);
-
-                return;
+                return { CGull::Resolved, std::any{std::move(results)} };
             }
         case CGull::First:
             {
@@ -220,47 +276,23 @@ namespace CGull::guts
                 {
                     const auto inn = inners.at(i);
 
-                    if(inn->isFinished())
-                    {
-                        result = inn->result;
-                        fulfillmentState.store(inn->fulfillmentState);
-
-                        return;
-                    };
+                    if(inn->isFulFilled())
+                        return { inn->fulfillmentState, inn->result };
                 };
 
-                return;
+                return { CGull::NotFulfilled, std::any{} };
             }
         case CGull::LastBound:
             {
                 const auto inn = inners.back();
 
-                if(!inn->isFinished())
-                    return;
+                if(!inn->isFulFilled())
+                    return { CGull::NotFulfilled, std::any{} };
 
-                result = inn->result;
-                fulfillmentState.store(inn->fulfillmentState);
-
-                return;
+                return { inn->fulfillmentState, inn->result };
             }
         };
-    }
 
-
-    inline
-    void PromisePrivate::_finish(CGull::FinishState fnState)
-    {
-        assert((bool)finisher);
-
-        finisher(CGull::Execute);
-        finishState.store(fnState);
-    }
-
-
-    inline
-    void PromisePrivate::_propagate()
-    {
-        if(outer)
-            outer->handler->fulfilled(outer);
+        return { CGull::NotFulfilled, std::any{} };
     }
 };

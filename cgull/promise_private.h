@@ -4,8 +4,9 @@
 #pragma once
 
 #include <cassert>
+#include <tuple>
 
-#define CGULL_DEBUG_GUTS
+#define CGULL_DEBUG_GUTS //!< \todo remove
 
 #if defined(CGULL_DEBUG_GUTS)
 #   include <iostream>
@@ -43,16 +44,19 @@ namespace CGull::guts
 
     public:
         using Type = shared_data_ptr<PromisePrivate>;
+        using InnersList = std::vector<Type>;
+        //using InnersResult = std::tuple<CGull::FulfillmentState, std::any>;
 
 
         std::any                result;
+        std::any                innersResultCache;
 
         AtomicFinishState       finishState         = { CGull::NotFinished };
         AtomicFulfillmentState  fulfillmentState    = { CGull::NotFulfilled };
         AtomicWaitType          wait                = { CGull::All };
 
         Type                    outer;
-        std::vector<Type>       inners;
+        InnersList              inners;
 
         CallbackFunctor         finisher;
 
@@ -61,6 +65,7 @@ namespace CGull::guts
         bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
         bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
         bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
+        bool    isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
         bool    isFinished() const  { return finishState.load() >= CGull::Thenned; };
 
 
@@ -77,8 +82,11 @@ namespace CGull::guts
         //! Binds new inner dependency.
         void bindInnerLocal(Type inner, CGull::WaitType waitType);
 
+        //! Binds new outer dependency.
+        void bindOuterLocal(Type outer);
+
         //! Resolves/Rejects this promise with value \a result.
-        void fulfillLocal(std::any&& value, bool isResolve);
+        void fulfillLocal(std::any&& value, CGull::FulfillmentState state);
 
         //! Resolves/Rejects this promise if it's an outer promise.
         void checkFulfillmentLocal();
@@ -89,10 +97,13 @@ namespace CGull::guts
         //! Clears inner dependencies.
         void unbindInners();
 
+        //! Clears outer dependency.
+        void unbindOuter();
+
 
     private:
-        void _checkInners();
-        void _finish(CGull::FinishState fnState);
+        std::tuple<CGull::FulfillmentState, std::any> _checkInners();
+        //void _finishLocal(CGull::FinishState fnState, std::any&& innersResult);
         void _propagate();
     };
 

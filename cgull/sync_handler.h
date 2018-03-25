@@ -16,8 +16,10 @@ namespace CGull
 
         void setFinisher(PrivateType self, CallbackFunctor&& callback, bool isResolve) override;
         void bindInner(PrivateType self, PrivateType inner, CGull::WaitType waitType) override;
-        void fulfilled(PrivateType self) override;
+        void bindOuter(PrivateType self, PrivateType outer) override;
+        void checkFulfillment(PrivateType self) override;
         void abort(PrivateType self) override;
+        void fulfill(PrivateType self, std::any&& value, bool isResolve) override;
         void deleteThis(PrivateType self) override;
 
         static void useForThisThread();
