@@ -61,12 +61,6 @@ namespace CGull::guts
 
         Handler*                handler = nullptr;
 
-        bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
-        bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
-        bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
-        bool    isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
-        bool    isFinished() const  { return finishState.load() >= CGull::Thenned; };
-
 
 #if defined(CGULL_DEBUG_GUTS)
         PromisePrivate();
@@ -101,6 +95,12 @@ namespace CGull::guts
 
         //! Checks promise for utilization state.
         void deleteThisLocal();
+
+        bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
+        bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
+        bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
+        bool    isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
+        bool    isFinished() const  { return finishState.load() >= CGull::Thenned; };
 
 
     private:
