@@ -43,7 +43,7 @@ TEST(guts__ref_counter, base)
 {
     using namespace CGull::guts;
 
-    ref_counter v;
+    RefCounter v;
 
     EXPECT_EQ(0, v);
 
@@ -71,7 +71,7 @@ TEST(guts__shared_data, base)
 {
     using namespace CGull::guts;
 
-    shared_data v;
+    SharedData v;
 
     EXPECT_EQ(0, v._ref);
 
@@ -79,7 +79,7 @@ TEST(guts__shared_data, base)
 
     EXPECT_EQ(1, v._ref);
 
-    shared_data v2{v};
+    SharedData v2{v};
 
     EXPECT_EQ(0, v2._ref);
 }
@@ -87,8 +87,8 @@ TEST(guts__shared_data, base)
 
 TEST(guts, static_asserts)
 {
-    EXPECT_EQ(sizeof(int), sizeof(CGull::guts::shared_data));
-    EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::shared_data_ptr<CGull::guts::shared_data>));
+    EXPECT_EQ(sizeof(int), sizeof(CGull::guts::SharedData));
+    EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>));
 
     EXPECT_EQ(sizeof(int), sizeof(std::atomic<CGull::FinishState>));
 }
@@ -98,7 +98,7 @@ TEST(guts__shared_data_ptr, ref_count)
 {
     using namespace CGull::guts;
 
-    struct TestStruct : public shared_data
+    struct TestStruct : public SharedData
     {
         static int& d() { static int v = 0; return v; }
         TestStruct()    { ++d(); }
@@ -108,7 +108,7 @@ TEST(guts__shared_data_ptr, ref_count)
     EXPECT_EQ(0, TestStruct::d());
 
     {
-        shared_data_ptr<TestStruct> val(new TestStruct);
+        SharedDataPtr<TestStruct> val(new TestStruct);
 
         EXPECT_EQ(1, TestStruct::d());
         EXPECT_EQ(1, val.constData()->_ref.load());
@@ -256,8 +256,8 @@ TEST(Promise, test)
     std::cout << TEST_OUT( sizeof(QSharedData) ) << '\n';
     std::cout << TEST_OUT( sizeof(QExplicitlySharedDataPointer<QSharedData>) ) << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(CGull::guts::shared_data) ) << '\n';
-    std::cout << TEST_OUT( sizeof(CGull::guts::shared_data_ptr<CGull::guts::shared_data>) ) << '\n'<< '\n';
+    std::cout << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
+    std::cout << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
 
     std::cout << TEST_OUT( sizeof(std::deque<intptr_t>) ) << '\n';
     std::cout << TEST_OUT( sizeof(std::vector<intptr_t>) ) << '\n';
@@ -282,10 +282,10 @@ TEST(Promise, test)
 
     std::cout << a.fetch_sub(1) << '\n'; std::cout << a.fetch_add(1)<< '\n';
 
-    CGull::guts::shared_data_ptr<CGull::guts::PromisePrivate> testv(new CGull::guts::PromisePrivate());
+    CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate> testv(new CGull::guts::PromisePrivate());
 
-    std::cout << TEST_OUT( sizeof(CGull::guts::shared_data) ) << '\n';
-    std::cout << TEST_OUT( sizeof(CGull::guts::shared_data_ptr<CGull::guts::shared_data>) ) << '\n'<< '\n';
+    std::cout << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
+    std::cout << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
 };
 #endif
 

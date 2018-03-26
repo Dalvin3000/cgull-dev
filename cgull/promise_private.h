@@ -32,7 +32,7 @@ namespace CGull::guts
     CGULL_DEFINE_ALLOCATOR(PromisePrivate);
 
 
-    class /*CGULL_API*/ PromisePrivate : public shared_data
+    class /*CGULL_API*/ PromisePrivate : public SharedData
     {
         CGULL_USE_ALLOCATOR(PromisePrivate);
 
@@ -43,7 +43,7 @@ namespace CGull::guts
         PromisePrivate& operator=(PromisePrivate&&) = delete;
 
     public:
-        using Type = shared_data_ptr<PromisePrivate>;
+        using Type = SharedDataPtr<PromisePrivate>;
         using InnersList = std::vector<Type>;
 
 
@@ -112,5 +112,5 @@ namespace CGull::guts
 
 };
 
-//CGULL_EXTERN template class CGULL_API CGull::guts::shared_data_ptr<CGull::guts::PromisePrivate>;
-//CGULL_EXTERN template class CGULL_API std::vector< CGull::guts::shared_data_ptr<CGull::guts::PromisePrivate> >;
+//CGULL_EXTERN template class CGULL_API CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate>;
+//CGULL_EXTERN template class CGULL_API std::vector< CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate> >;

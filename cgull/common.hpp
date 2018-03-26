@@ -4,7 +4,7 @@
 namespace CGull::guts
 {
     template<typename _T> inline
-    shared_data_ptr<_T>::shared_data_ptr(_T* from) noexcept
+    SharedDataPtr<_T>::SharedDataPtr(_T* from) noexcept
         : d(from)
     {
         if(d)
@@ -12,7 +12,7 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>::shared_data_ptr(const shared_data_ptr<_T>& other)
+    SharedDataPtr<_T>::SharedDataPtr(const SharedDataPtr<_T>& other)
         : d(other.d)
     {
         if(d)
@@ -21,7 +21,7 @@ namespace CGull::guts
 
     template<typename _T>
     template<typename _OtherT> inline
-    shared_data_ptr<_T>::shared_data_ptr(const shared_data_ptr<_OtherT>& other)
+    SharedDataPtr<_T>::SharedDataPtr(const SharedDataPtr<_OtherT>& other)
         : d(static_cast< _T* >(other.data()))
     {
         if(d)
@@ -29,21 +29,21 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>::shared_data_ptr(shared_data_ptr&& other) noexcept
+    SharedDataPtr<_T>::SharedDataPtr(SharedDataPtr&& other) noexcept
         : d(other.d)
     {
         other.d = nullptr;
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>::~shared_data_ptr()
+    SharedDataPtr<_T>::~SharedDataPtr()
     {
         if(d && !d->_ref.deref())
             delete d;
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>& shared_data_ptr<_T>::operator=(const shared_data_ptr<_T>& other)
+    SharedDataPtr<_T>& SharedDataPtr<_T>::operator=(const SharedDataPtr<_T>& other)
     {
         if(other.d != d)
         {
@@ -61,7 +61,7 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>& shared_data_ptr<_T>::operator=(shared_data_ptr<_T>&& other) noexcept
+    SharedDataPtr<_T>& SharedDataPtr<_T>::operator=(SharedDataPtr<_T>&& other) noexcept
     {
         std::swap(d, other.d);
 
@@ -69,7 +69,7 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    shared_data_ptr<_T>& shared_data_ptr<_T>::operator=(_T* other)
+    SharedDataPtr<_T>& SharedDataPtr<_T>::operator=(_T* other)
     {
         if(other != d)
         {
@@ -87,7 +87,7 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    void shared_data_ptr<_T>::detach()
+    void SharedDataPtr<_T>::detach()
     {
         if(d && d->_ref.load() != 1)
         {
@@ -102,7 +102,7 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    void shared_data_ptr<_T>::reset()
+    void SharedDataPtr<_T>::reset()
     {
         if(d && !d->_ref.deref())
             delete d;
@@ -111,13 +111,13 @@ namespace CGull::guts
     }
 
     template<typename _T> inline
-    void shared_data_ptr<_T>::swap(shared_data_ptr &other) noexcept
+    void SharedDataPtr<_T>::swap(SharedDataPtr &other) noexcept
     {
         std::swap(d, other.d);
     }
 
     template<typename _T> inline
-    _T* shared_data_ptr<_T>::clone()
+    _T* SharedDataPtr<_T>::clone()
     {
         return new _T(*d);
     }

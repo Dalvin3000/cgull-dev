@@ -177,13 +177,13 @@ namespace CGull::guts
 
 
     //! Slightly sugared version of \a atomic_int.
-    class ref_counter : public std::atomic<int>
+    class RefCounter : public std::atomic<int>
     {
-        ref_counter(const ref_counter&) = delete;
-        ref_counter& operator=(const ref_counter&) = delete;
+        RefCounter(const RefCounter&) = delete;
+        RefCounter& operator=(const RefCounter&) = delete;
 
     public:
-        ref_counter()   : std::atomic<int>(0) { }
+        RefCounter()   : std::atomic<int>(0) { }
 
         bool deref()    { return fetch_sub(1) - 1; }
         bool ref()      { return fetch_add(1) + 1; }
@@ -193,15 +193,15 @@ namespace CGull::guts
 
 
     //! Base class for pimpl implementation data.
-    class shared_data
+    class SharedData
     {
-        shared_data& operator=(const shared_data&) = delete;
+        SharedData& operator=(const SharedData&) = delete;
 
     public:
-        mutable ref_counter _ref;
+        mutable RefCounter _ref;
 
-        shared_data() {}
-        shared_data(const shared_data&) {}
+        SharedData() {}
+        SharedData(const SharedData&) {}
 
     };
 
@@ -209,25 +209,25 @@ namespace CGull::guts
 
     //! Smart pointer for explicitly controlled shared data.
     template<typename _T>
-    class shared_data_ptr
+    class SharedDataPtr
     {
     public:
-        shared_data_ptr() {}
+        SharedDataPtr() {}
         explicit
-        shared_data_ptr(_T* from) noexcept;
+        SharedDataPtr(_T* from) noexcept;
         template<typename _OtherT>
-        shared_data_ptr(const shared_data_ptr<_OtherT>& other);
-        shared_data_ptr(const shared_data_ptr<_T>& other);
-        shared_data_ptr(shared_data_ptr&& other) noexcept;
-        ~shared_data_ptr();
+        SharedDataPtr(const SharedDataPtr<_OtherT>& other);
+        SharedDataPtr(const SharedDataPtr<_T>& other);
+        SharedDataPtr(SharedDataPtr&& other) noexcept;
+        ~SharedDataPtr();
 
-        shared_data_ptr<_T>& operator=(const shared_data_ptr<_T>& other);
-        shared_data_ptr<_T>& operator=(shared_data_ptr<_T>&& other) noexcept;
-        shared_data_ptr<_T>& operator=(_T* other);
+        SharedDataPtr<_T>& operator=(const SharedDataPtr<_T>& other);
+        SharedDataPtr<_T>& operator=(SharedDataPtr<_T>&& other) noexcept;
+        SharedDataPtr<_T>& operator=(_T* other);
 
         void detach() ;
         void reset();
-        void swap(shared_data_ptr &other) noexcept;
+        void swap(SharedDataPtr &other) noexcept;
 
         _T*         data() const        { return d; }
         const _T*   constData() const   { return d; }
@@ -238,8 +238,8 @@ namespace CGull::guts
 
         operator bool() const           { return d != nullptr; }
 
-        bool operator==(const shared_data_ptr<_T>& other) const   { return d == other.d; }
-        bool operator!=(const shared_data_ptr<_T>& other) const   { return d != other.d; }
+        bool operator==(const SharedDataPtr<_T>& other) const   { return d == other.d; }
+        bool operator!=(const SharedDataPtr<_T>& other) const   { return d != other.d; }
         bool operator==(const _T* ptr) const                      { return d == ptr; }
         bool operator!=(const _T* ptr) const                      { return d != ptr; }
 
