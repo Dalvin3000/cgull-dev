@@ -16,6 +16,10 @@
 
 namespace CGull::guts
 {
+    //! \return [value] true if type \a _T is one of \a _OtherT types.
+    template<typename _T, typename ... _OtherT>
+    struct one_of_types : std::disjunction< std::is_same<_OtherT, _T> ... >::type {};
+
     //! Function return value tagging
     struct return_auto_tag {};
     struct return_void_tag {};
