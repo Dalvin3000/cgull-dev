@@ -114,8 +114,7 @@ namespace CGull
     enum FinishState
     {
         NotFinished = 0,
-        AwaitingResolve,
-        AwaitingReject,
+        Awaiting,
         Thenned,
         Rescued,
         Skipped,

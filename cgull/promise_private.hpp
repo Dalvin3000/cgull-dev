@@ -34,18 +34,17 @@ namespace CGull::guts
     inline
     void PromisePrivate::setFinisherLocal(CallbackFunctor&& callback, bool isResolve)
     {
-        const auto st = finishState.load();
+        const auto st = finishState;
 
-        // can't set finisher twice
-        assert(!st);
+        assert(!st && "Promise already finished.");
+        assert(!finisher && "Can't set finisher twice.");
 
         if(st)
             return;
 
-        assert(!finisher);
-
         finisher = std::move(callback);
-        finishState.store(isResolve ? CGull::AwaitingResolve : CGull::AwaitingReject);
+        finisherIsResolver = isResolve;
+        finishState = CGull::Awaiting;
 
         // Call finisher only if promise resolved
         if(fulfillmentState)
@@ -58,8 +57,6 @@ namespace CGull::guts
     {
         inners.push_back(inner);
         wait = waitType;
-
-        //tryFinishLocal();
     }
 
 
@@ -81,39 +78,13 @@ namespace CGull::guts
 
         if(fulfillmentState.compare_exchange_strong(tmp, CGull::FulfillingNow, std::memory_order_acquire))
         {
-            unbindInners();
-
             result = std::move(value);
+            fulfillmentState.store(state);
 
-            if(state == CGull::Resolved)
-            {
-                fulfillmentState.store(CGull::Resolved);
+            if(finishState < CGull::Thenned)
+                finishState = CGull::Skipped;
 
-                if(finishState == CGull::AwaitingResolve)
-                {
-                    finishState.store(CGull::Thenned);
-                    _propagate();
-                }
-                else
-                    abortLocal();
-            }
-            else if(state == CGull::Rejected)
-            {
-                fulfillmentState.store(CGull::Rejected);
-
-                if(finishState == CGull::AwaitingReject)
-                {
-                    finishState.store(CGull::Rescued);
-                    _propagate();
-                }
-                else
-                    abortLocal();
-            }
-            else
-            {
-                fulfillmentState.store(CGull::Aborted);
-                abortLocal();
-            };
+            _propagate();
         };
     }
 
@@ -121,10 +92,10 @@ namespace CGull::guts
     inline
     void PromisePrivate::tryFinishLocal()
     {
-        const auto fnState = finishState.load();
+        const auto fnState = finishState;
 
         // check if promise already finished
-        if(fnState >= CGull::Thenned)
+        if(fnState >= CGull::Thenned && isFulFilled())
             return;
 
         // check inners for outer promise or just return if promise not chained
@@ -132,41 +103,34 @@ namespace CGull::guts
         {
             auto [innersFFState, innersFFResult] = _checkInnersFulfillment();
 
+            if(innersFFState < CGull::Resolved)
+                return;
+
             // finish or try propagate to outer. skip if not fulfilled
-            if(innersFFState == CGull::Resolved)
+            if( (fnState == CGull::Awaiting && innersFFState == CGull::Resolved && finisherIsResolver) ||
+                (fnState == CGull::Awaiting && innersFFState == CGull::Rejected && !finisherIsResolver))
             {
-                if(fnState == CGull::AwaitingResolve)
-                {
-                    assert(!!finisher);
-                    finisher(CGull::Execute, std::move(innersFFResult));
-                    finisher = nullptr;
-                }
-                else
-                {
-                    fulfillLocal(std::move(innersFFResult), CGull::Resolved);
-                    abortLocal();
-                };
+                assert(!!finisher);
+
+                finisher(CGull::Execute, std::move(innersFFResult)); // not async
+                finisher = nullptr;
             }
-            else if(innersFFState == CGull::Rejected)
+            else
             {
-                if(fnState == CGull::AwaitingReject)
-                {
-                    assert(!!finisher);
-                    finisher(CGull::Execute, std::move(innersFFResult));
-                    finisher = nullptr;
-                }
-                else
-                {
-                    fulfillLocal(std::move(innersFFResult), CGull::Rejected);
-                    abortLocal();
-                };
-            }
-            else if(innersFFState == CGull::Aborted)
-            {
-                fulfillLocal(std::move(innersFFResult), CGull::Aborted);
+                unbindInners();
+                fulfillLocal(std::move(innersFFResult), innersFFState);
                 abortLocal();
             };
         };
+    }
+
+
+    inline
+    void PromisePrivate::completeFinish()
+    {
+        finishState = finisherIsResolver ? CGull::Thenned : CGull::Rescued;
+
+        unbindInners();
     }
 
 
@@ -180,11 +144,10 @@ namespace CGull::guts
         };
 
         if(finishState < CGull::Thenned)
-            finishState.store(CGull::Skipped);
+            finishState = CGull::Skipped;
 
         unbindInners();
         _propagate();
-        unbindOuters();
     }
 
 
@@ -192,7 +155,7 @@ namespace CGull::guts
     void PromisePrivate::unbindInners()
     {
         if(!inners.empty())
-            std::swap(inners, InnersList{});
+            std::swap(inners, PromisePrivateList{});
     }
 
 
@@ -200,7 +163,7 @@ namespace CGull::guts
     void PromisePrivate::unbindOuters()
     {
         if(!outers.empty())
-            std::swap(outers, InnersList{});
+            std::swap(outers, PromisePrivateList{});
     }
 
 
@@ -210,7 +173,7 @@ namespace CGull::guts
         const auto refs = _ref.load();
 
         if((refs == 2+outers.size() && inners.empty()) //< check for root promise
-            || refs <= 1)
+            || refs <= 1)                              //< last ref
         {
             if(!isFulFilled())
                 fulfillLocal(std::move(std::any{}), CGull::Aborted);
@@ -316,5 +279,7 @@ namespace CGull::guts
     {
         for(const auto outer : outers)
             outer->handler->tryFinish(outer);
+
+        unbindOuters();
     }
 };

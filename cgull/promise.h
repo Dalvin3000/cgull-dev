@@ -97,7 +97,7 @@ private:
 
     //! Exception catcher.
     template< typename _Callback >
-    void _wrapRescue(_Callback callback);
+    void _wrapRescue(_Callback&& callback);
 
 
 
@@ -158,8 +158,11 @@ private:
 
 
     //! Removes std::any_cast exception
-    template< typename _T >
-    static const _T& _unwrapArg(const std::any& value);
+    template<
+        typename _T,
+        typename _dT = std::decay_t<_T>
+    >
+    static _dT _unwrapArg(std::any&& value);
 
 };
 

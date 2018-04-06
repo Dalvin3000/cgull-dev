@@ -29,19 +29,26 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context)
     // chained outer
     Promise next;
 
-    // wrap finisher
-    // \param abort If true - then only captures will be cleared.
+    // Wrap finisher into unified functor.
+    // \param abort If true then only captures will be cleared.
+    // \param innersResult Cached result of inner promises.
     CGull::CallbackFunctor wrappedFinisher =
-        [self = next, onResolve = std::move(onResolve)](bool abort, std::any&& innersResult) mutable
+        [_self = next, onResolve = std::move(onResolve)](bool abort, std::any&& innersResult) mutable
         {
+            auto self = _self;
+            _self._d.reset();
+
+            if(!self._d)
+                return;
+
             if(!abort)
             {
                 self._d->innersResultCache = std::move(innersResult);
 
-                self._wrapRescue(onResolve);
-            };
-
-            self._d.reset();
+                self._wrapRescue(std::move(onResolve));
+            }
+            else
+                const auto temp = std::move(onResolve);
         };
 
     // we don't need to call handler cause 'next' was just created
@@ -198,7 +205,7 @@ Promise& Promise::reject(std::any&& value)
 
 
 template< typename _Callback > inline
-void Promise::_wrapRescue(_Callback callback)
+void Promise::_wrapRescue(_Callback&& callback)
 {
     try
     {
@@ -206,11 +213,13 @@ void Promise::_wrapRescue(_Callback callback)
     }
     catch(const std::exception& e)
     {
-        _handleFulfill(e.what(), false);
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(e.what(), CGull::Rejected);
     }
     catch(const char* e)
     {
-        _handleFulfill(e, false);
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(e, CGull::Rejected);
     }
     catch(...)
     {
@@ -236,10 +245,8 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_void_
 {
     _wrapCallbackArgs(callback);
 
-    _handleFulfill(
-        std::move(std::any{}),
-        (_d->finishState == CGull::AwaitingResolve ? true : false)
-    );
+    _d->finishState = _d->finisherIsResolver ? CGull::Thenned : CGull::Rescued;
+    _d->fulfillLocal(std::move(std::any{}), CGull::Resolved);
 }
 
 
@@ -247,10 +254,10 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_void_
 template< typename _Callback > inline
 void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_any_tag)
 {
-    _handleFulfill(
-        std::move(_wrapCallbackArgs(callback)),
-        (_d->finishState == CGull::AwaitingResolve ? true : false)
-    );
+    std::any result = _wrapCallbackArgs(callback);
+
+    _d->completeFinish();
+    _d->fulfillLocal(std::move(result), CGull::Resolved);
 }
 
 
@@ -258,10 +265,10 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_any_t
 template< typename _Callback > inline
 void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_auto_tag)
 {
-    _handleFulfill(
-        std::make_any<decltype(_wrapCallbackArgs(callback))>(_wrapCallbackArgs(callback)),
-        (_d->finishState == CGull::AwaitingResolve ? true : false)
-    );
+    auto result = _wrapCallbackArgs(callback);
+
+    _d->completeFinish();
+    _d->fulfillLocal(std::make_any<decltype(result)>(result), CGull::Resolved);
 }
 
 
@@ -271,8 +278,9 @@ void Promise::_wrapCallbackReturn(_Callback& callback, CGull::guts::return_promi
 {
     Promise inner = _wrapCallbackArgs(callback);
 
+    _d->completeFinish();
+    _d->bindInnerLocal(inner._d, CGull::LastBound);
     inner._handleBindOuter(_d);
-    _handleBindInner(inner, CGull::LastBound);
 }
 
 
@@ -320,20 +328,22 @@ template<
 auto Promise::_wrapCallbackArgs(_Callback& callback, CGull::guts::args_count_1_auto)
     -> typename _CallbackTraits::result_type
 {
-    return callback(_unwrapArg< typename _CallbackTraits::template arg<0>::type >(std::move(_d->innersResultCache)));
+    return callback(std::move(
+        _unwrapArg< typename _CallbackTraits::template arg<0>::type >
+        (std::move(_d->innersResultCache)))
+    );
 }
 
 
-template< typename _T >
-const _T& Promise::_unwrapArg(const std::any& value)
+template< typename _T, typename _dT > inline
+_dT Promise::_unwrapArg(std::any&& value)
 {
     try
     {
-        return std::any_cast< const _T& >(value);
+        return std::any_cast< _dT >(value);
     }
     catch(const std::bad_any_cast&)
     {
-        static const std::any default_value;
-        return std::any_cast< const _T& >(default_value);
+        return _dT{};
     };
 }

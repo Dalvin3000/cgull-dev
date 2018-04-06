@@ -43,6 +43,8 @@ namespace CGull
         virtual void abort(PrivateType self) = 0;
         virtual void fulfill(PrivateType self, std::any&& value, bool isResolve) = 0;
         virtual void deleteThis(PrivateType self) = 0;
+        virtual void init(PrivateType self) = 0;
+        virtual void deleteHandlerData(PrivateType self) = 0;
 
         //! \return handler for current thread.
         static Handler* forThisThread();

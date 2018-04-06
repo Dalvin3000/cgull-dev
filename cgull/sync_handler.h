@@ -21,11 +21,17 @@ namespace CGull
         void abort(PrivateType self) override;
         void fulfill(PrivateType self, std::any&& value, bool isResolve) override;
         void deleteThis(PrivateType self) override;
+        void init(PrivateType self) override;
+        void deleteHandlerData(PrivateType self) override;
 
         static void useForThisThread();
 
 
     private:
+        class SyncHandlerData
+        {
+            bool recursionWarden = false;
+        };
 
     };
 

@@ -203,8 +203,9 @@ ENDIF()
 ##                    tests
 
 FIND_PACKAGE(GTest)
+FIND_PACKAGE(Boost)
 
-IF(GTEST_LIBRARIES AND GTEST_INCLUDE_DIRS)
+IF(GTEST_LIBRARIES AND GTEST_INCLUDE_DIRS AND Boost_FOUND)
     SET(PROJECT_NAME_TESTS ${PROJECT_NAME}-tests)
 
     ADD_EXECUTABLE(${PROJECT_NAME_TESTS} ${TESTS})
@@ -217,6 +218,7 @@ IF(GTEST_LIBRARIES AND GTEST_INCLUDE_DIRS)
             ${PROJECT_NAME}
             ${GTEST_LIBRARIES}
             Threads::Threads
+            Boost::boost
         )
 
     IF(Qt5Core_FOUND)

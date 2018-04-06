@@ -44,22 +44,36 @@ namespace CGull::guts
 
     public:
         using Type = SharedDataPtr<PromisePrivate>;
-        using InnersList = std::vector<Type>;
+        using PromisePrivateList = std::vector<Type>;
 
 
+        //! Context-local write and context-local read.
         std::any                result;
-        std::any                innersResultCache;
 
-        AtomicFinishState       finishState         = { CGull::NotFinished };
-        AtomicFulfillmentState  fulfillmentState    = { CGull::NotFulfilled };
+        //! Context-local.
         AtomicWaitType          wait                = { CGull::All };
+        //! Context-local write and context-local read.
+        AtomicFulfillmentState  fulfillmentState    = { CGull::NotFulfilled };
+        //! Context-local write and context-local read.
+        volatile FinishState    finishState         = { CGull::NotFinished };
 
-        InnersList              outers;
-        InnersList              inners;
+        //! Tells whether finisher is resolver or rescuer.
+        bool                    finisherIsResolver;
 
+        //! Context-local.
+        PromisePrivateList      outers;
+        //! Context-local.
+        PromisePrivateList      inners;
+
+        //! Context-local.
+        std::any                innersResultCache;
+        //! Finisher callback for chain fulfillment. Contex-local.
         CallbackFunctor         finisher;
 
-        Handler*                handler = nullptr;
+        //! Async handler used by promise context-remote.
+        Handler* volatile       handler = nullptr;
+        //! Internal data used by handler contex-local.
+        void*                   handlerData = nullptr;
 
 
 #if defined(CGULL_DEBUG_GUTS)
@@ -81,8 +95,9 @@ namespace CGull::guts
         //! Resolves/Rejects this promise with value \a result.
         void fulfillLocal(std::any&& value, CGull::FulfillmentState state);
 
-        //! Resolves/Rejects this promise if it's an outer promise.
+        //! Checks inner promises and calls then/rescue on this promise if condition met.
         void tryFinishLocal();
+        void completeFinish();
 
         //! Clears inner dependencies and finisher.
         void abortLocal();
@@ -100,7 +115,7 @@ namespace CGull::guts
         bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
         bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
         bool    isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
-        bool    isFinished() const  { return finishState.load() >= CGull::Thenned; };
+        bool    isFinished() const  { return finishState >= CGull::Thenned; };
 
 
     private:

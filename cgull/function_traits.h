@@ -157,7 +157,11 @@ namespace CGull::guts
         };
 
         //! Arguments traits.
-        using args_tag = typename function_args_traits< args_count, typename arg_safe<0>::type >::tag;
+        using args_tag =
+            typename function_args_traits<
+                args_count,
+                std::decay_t< typename arg_safe<0>::type >
+            >::tag;
     };
 
 

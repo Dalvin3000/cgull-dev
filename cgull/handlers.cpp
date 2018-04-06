@@ -66,9 +66,19 @@ namespace CGull
         self->fulfillLocal(std::forward<std::any>(value), isResolve ? CGull::Resolved : CGull::Rejected);
     }
 
+    void SyncHandler::init(PrivateType self)
+    {
+        self->handlerData = reinterpret_cast<void*>(new SyncHandlerData);
+    }
+
     void SyncHandler::deleteThis(PrivateType self)
     {
         self->deleteThisLocal();
+    }
+
+    void SyncHandler::deleteHandlerData(PrivateType self)
+    {
+        delete reinterpret_cast<SyncHandlerData*>(self->handlerData);
     }
 
     void SyncHandler::useForThisThread()

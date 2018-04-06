@@ -1,6 +1,13 @@
 #pragma once
 
+#define _ENABLE_ATOMIC_ALIGNMENT_FIX
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS true
+#define _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING true
+
 #include <Promise>
+
+#include <deque>
+#include <boost/lockfree/queue.hpp>
 
 #if defined(CGULL_DEBUG_GUTS)
 #   define CHECK_CGULL_PROMISE_GUTS \
@@ -9,7 +16,6 @@
 #else
 #   define CHECK_CGULL_PROMISE_GUTS
 #endif
-
 
 
 #if 1
@@ -37,6 +43,53 @@ std::string type_name()
     return std::move(r);
 }
 #endif
+
+
+#define CHAINV chain += v
+
+class ChainTestHelper
+{
+public:
+    boost::lockfree::queue<int> results;
+    std::deque<int>             expectedResults;
+
+
+    ChainTestHelper(std::initializer_list<int> _expectedResults)
+        : expectedResults{ _expectedResults }
+        , results{ 64 }
+    { }
+
+    void append(int v) { results.push(v); std::cout << '=' << v << '\n'; }
+    ChainTestHelper& operator+=(int v) { append(v); return *this; }
+
+    uint64_t isFailed()
+    {
+        auto            expected = expectedResults;
+        std::deque<int> actual;
+        uint64_t        expectedMask = 0;
+        uint64_t        actualMask = 0;
+
+        while(!results.empty())
+        {
+            int v;
+            results.pop(v);
+            actual.push_back(v);
+        };
+
+        for(int i = 0, ie = actual.size(); i != ie; ++i)
+            actualMask |= 1 << i;
+        for(int i = 0, ie = expected.size(); i != ie; ++i)
+            expectedMask |= 1 << i;
+
+        if(actualMask != expectedMask)
+            return actualMask;
+
+        if(actual != expected)
+            return actualMask;
+
+        return 0;
+    }
+};
 
 
 TEST(guts__ref_counter, base)
@@ -90,7 +143,7 @@ TEST(guts, static_asserts)
     EXPECT_EQ(sizeof(int), sizeof(CGull::guts::SharedData));
     EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>));
 
-    EXPECT_EQ(sizeof(int), sizeof(std::atomic<CGull::FinishState>));
+    EXPECT_EQ(sizeof(int8_t), sizeof(std::atomic<CGull::FinishState>));
 }
 
 
@@ -376,6 +429,38 @@ TEST(PromiseBase, fulfill_simple)
     }
     CHECK_CGULL_PROMISE_GUTS;
 
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.reject(2319)
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1172; });
+        Promise p3 = p2
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(1172, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(0, thenCalled);
+
+        EXPECT_EQ(2319 , p1.value<int>());
+        EXPECT_EQ(false, p1.isResolved());
+        EXPECT_EQ(true , p1.isRejected());
+        EXPECT_EQ(true , p1.isFinished());
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(2319 , p2.value<int>());
+        EXPECT_EQ(false, p2.isResolved());
+        EXPECT_EQ(true , p2.isRejected());
+        EXPECT_EQ(true , p2.isFinished());
+        EXPECT_EQ(true , p2.isFulFilled());
+
+        EXPECT_EQ(2319 , p3.value<int>());
+        EXPECT_EQ(false, p3.isResolved());
+        EXPECT_EQ(true , p3.isRejected());
+        EXPECT_EQ(true , p3.isFinished());
+        EXPECT_EQ(true , p3.isFulFilled());
+
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
 };
 
 
@@ -440,7 +525,231 @@ TEST(PromiseBase, then_simple)
     }
     CHECK_CGULL_PROMISE_GUTS;
 
+    {
+        std::atomic_int thenCalled = 0;
+
+        CGull::SyncHandler::useForThisThread();
+
+        Promise b = Promise{}.resolve(5)
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            ;
+
+        EXPECT_EQ(0x07, thenCalled);
+
+        std::cout << '\n';
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
 };
+
+
+TEST(PromiseBase, nested_thens)
+{
+    CGull::SyncHandler::useForThisThread();
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = {5,4,7};
+
+        Promise a, c, b = a
+            .then([&](int v) { CHAINV; return c; })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a.resolve(5);
+        c.resolve(4);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,7 };
+
+        Promise a, c, b = a
+            .then([&](int v) { CHAINV; return c; })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        c.resolve(4);
+        a.resolve(5);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,7 };
+
+        Promise a, b = a
+            .then([&](int v) { CHAINV; return Promise{}.resolve(4); })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a.resolve(5);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,7 };
+
+        Promise a, c, b = a
+            .then([&](int v) { CHAINV; return c.resolve(4); })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a.resolve(5);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+
+
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a
+            .then([&](int v) { CHAINV; return d = c
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        c.resolve(4);
+        a.resolve(5);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a
+            .then([&](int v) { CHAINV; return d = c
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a.resolve(5);
+        c.resolve(4);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a
+            .then([&](int v) { CHAINV; return d = c.resolve(4)
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a.resolve(5);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a.resolve(5)
+            .then([&](int v) { CHAINV; return d = c.resolve(4)
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a;
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a.resolve(5)
+            .then([&](int v) { CHAINV; return d = c
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; })
+            .then([&](int v) { CHAINV; });
+
+        a;
+        c.resolve(4);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a
+            .then([&](int v) { CHAINV; return d = c.resolve(4)
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; }); a.resolve(5); b
+            .then([&](int v) { CHAINV; });
+
+        a;
+        c;
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+    {
+        CGull::SyncHandler::useForThisThread();
+        ChainTestHelper chain = { 5,4,9,7 };
+
+        Promise a, c, d, b = a
+            .then([&](int v) { CHAINV; return d = c
+                .then([&](int v) { CHAINV; return 9; });
+                })
+            .then([&](int v) { CHAINV; return 7; }); a.resolve(5); b
+            .then([&](int v) { CHAINV; });
+
+        a;
+        c.resolve(4);
+
+        EXPECT_EQ(0, chain.isFailed());
+    }
+
+    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+
+}
 
 
 TEST(PromiseBase, several_thens)
@@ -612,14 +921,26 @@ TEST(PromiseBase, then_compilation)
     {
         CGull::SyncHandler::useForThisThread();
 
-        { auto next = Promise{}.then([a = 10](int prev) { std::cout << prev + a; }); };
-        { auto next = Promise{}.then([]() { }); };
-        { auto next = Promise{}.then([]() { return 1; }); };
-        { auto next = Promise{}.then([]() { return std::string{}; }); };
-        { auto next = Promise{}.then([]() { return std::any{}; }); };
+        { auto next = Promise{}.resolve(1).then([]() {}); };
+        { auto next = Promise{}.resolve(1).then([](const std::any&) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::any) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::any&&) {}); };
+        { auto next = Promise{}.resolve(1).then([](const int&) {}); };
+        { auto next = Promise{}.resolve(1).then([](int) {}); };
+        { auto next = Promise{}.resolve(1).then([](int&&) {}); };
+        { auto next = Promise{}.resolve(1).then([](const std::string&) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::string) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::string&&) {}); };
+
+        { auto next = Promise{}.resolve(1).then([a = 10](int prev) { std::cout << prev + a << '\n'; }); };
+
+        { auto next = Promise{}.resolve(1).then([]() { return 1; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return std::string{}; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return std::any{}; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return Promise{}; }); };
         { auto next = Promise{}.then([]() { return Promise{}; }); };
-        { auto next = Promise{}.then([](const std::string&) {}); };
-        { auto next = Promise{}.then([](std::string) {}); };
+        { auto next = Promise{}.resolve(1).then([]() { return Promise{}.resolve(2); }); };
+        { auto next = Promise{}.then([]() { return Promise{}.resolve(2); }); };
     }
 
     CHECK_CGULL_PROMISE_GUTS;
