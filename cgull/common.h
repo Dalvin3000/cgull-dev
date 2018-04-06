@@ -111,7 +111,7 @@
 namespace CGull
 {
     //! Represents promise finish finishState.
-    enum FinishState
+    enum FinishState : uint8_t
     {
         NotFinished = 0,
         Awaiting,
@@ -123,7 +123,7 @@ namespace CGull
     using AtomicFinishState = std::atomic<FinishState>;
 
     //! Represents promise fulfillment finishState.
-    enum FulfillmentState
+    enum FulfillmentState : uint8_t
     {
         NotFulfilled = 0,
         FulfillingNow,
@@ -135,7 +135,7 @@ namespace CGull
     using AtomicFulfillmentState = std::atomic<FulfillmentState>;
 
     //! Represents promise wait type for complex nested promises.
-    enum WaitType
+    enum WaitType : uint8_t
     {
         Any = 0,
         All,
