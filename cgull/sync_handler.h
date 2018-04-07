@@ -26,13 +26,6 @@ namespace CGull
 
         static void useForThisThread();
 
-
-    private:
-        class SyncHandlerData
-        {
-            bool recursionWarden = false;
-        };
-
     };
 
 };

@@ -68,7 +68,6 @@ namespace CGull
 
     void SyncHandler::init(PrivateType self)
     {
-        self->handlerData = reinterpret_cast<void*>(new SyncHandlerData);
     }
 
     void SyncHandler::deleteThis(PrivateType self)
@@ -78,7 +77,6 @@ namespace CGull
 
     void SyncHandler::deleteHandlerData(PrivateType self)
     {
-        delete reinterpret_cast<SyncHandlerData*>(self->handlerData);
     }
 
     void SyncHandler::useForThisThread()

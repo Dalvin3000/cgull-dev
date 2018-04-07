@@ -52,7 +52,7 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context, bool isResolve)
         };
 
     // we don't need to call handler cause 'next' was just created
-    next._d->setFinisherLocal(std::move(wrappedFinisher), isResolve);
+    next._d->handler->setFinisher(next._d, std::move(wrappedFinisher), isResolve);
     next._d->bindInnerLocal(_d, CGull::LastBound);
 
     // async bind 'next' as 'outer' to 'this' cause this thread might not be the thread of 'this'.
