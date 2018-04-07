@@ -52,17 +52,11 @@ public:
     template< typename _T >
     _T value() const            { return std::move(std::any_cast<_T>(_d->result)); };
 
-    //! \note Sync method.
     bool isFulFilled() const    { return _d->isFulFilled(); };
-    //! \note Sync method.
     bool isResolved() const     { return _d->isResolved(); };
-    //! \note Sync method.
     bool isRejected() const     { return _d->isRejected(); };
-    //! \note Sync method.
     bool isAborted() const      { return _d->isAborted(); };
-    //! \note Sync method.
     bool isFinished() const     { return _d->isFinished(); };
-
 
 
 private:
@@ -75,14 +69,9 @@ private:
     >
     Promise _then(_Resolve&& onResolve, _Context context, bool isResolve);
 
-    //! \return outer promise assuming it was already set.
-    //Promise _outer() const      { assert(_d.constData()->outer); return _d.constData()->outer; }
 
-    //! \return promise value without any sync.
-    const std::any& _valueLocal() const { return _d->result; }
+    // ====  handler calls  ====
 
-
-    // handler calls
 
     void _handleFulfilled();
     void _handleBindInner(Promise inner, CGull::WaitType waitType);
@@ -94,7 +83,6 @@ private:
     void _handleFulfill(_T&& value, bool isResolve);
     template< typename _T >
     void _handleFulfill(const _T& value, bool isResolve);
-
 
 
 private:
