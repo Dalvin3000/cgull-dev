@@ -461,6 +461,131 @@ TEST(PromiseBase, fulfill_simple)
     }
     CHECK_CGULL_PROMISE_GUTS;
 
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.reject(2319)
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1172; });
+        Promise p3 = p2
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1132; });
+        Promise p4 = p3
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(2, thenCalled);
+
+        EXPECT_EQ(2319 , p1.value<int>());
+        EXPECT_EQ(false, p1.isResolved());
+        EXPECT_EQ(true , p1.isRejected());
+        EXPECT_EQ(true , p1.isFinished());
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(2319 , p2.value<int>());
+        EXPECT_EQ(false, p2.isResolved());
+        EXPECT_EQ(true , p2.isRejected());
+        EXPECT_EQ(true , p2.isFinished());
+        EXPECT_EQ(true , p2.isFulFilled());
+
+        EXPECT_EQ(1132, p3.value<int>());
+        EXPECT_EQ(true , p3.isResolved());
+        EXPECT_EQ(false, p3.isRejected());
+        EXPECT_EQ(true , p3.isFinished());
+        EXPECT_EQ(true , p3.isFulFilled());
+
+        EXPECT_EQ(true , p4.isResolved());
+        EXPECT_EQ(false, p4.isRejected());
+        EXPECT_EQ(true , p4.isFinished());
+        EXPECT_EQ(true , p4.isFulFilled());
+
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.resolve(2319)
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; throw 1178; return 1172; });
+        Promise p3 = p2
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); std::cout << '=' << v << '\n'; return 1132; });
+        Promise p4 = p3
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(3, thenCalled);
+
+        EXPECT_EQ(2319 , p1.value<int>());
+        EXPECT_EQ(true , p1.isResolved());
+        EXPECT_EQ(false, p1.isRejected());
+        EXPECT_EQ(true , p1.isFinished());
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(1178 , p2.value<int>());
+        EXPECT_EQ(false, p2.isResolved());
+        EXPECT_EQ(true , p2.isRejected());
+        EXPECT_EQ(true , p2.isFinished());
+        EXPECT_EQ(true , p2.isFulFilled());
+
+        EXPECT_EQ(1132, p3.value<int>());
+        EXPECT_EQ(true , p3.isResolved());
+        EXPECT_EQ(false, p3.isRejected());
+        EXPECT_EQ(true , p3.isFinished());
+        EXPECT_EQ(true , p3.isFulFilled());
+
+        EXPECT_EQ(true , p4.isResolved());
+        EXPECT_EQ(false, p4.isRejected());
+        EXPECT_EQ(true , p4.isFinished());
+        EXPECT_EQ(true , p4.isFulFilled());
+
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
+    {
+        std::atomic_int thenCalled = 0;
+
+        Promise p1;
+        Promise p2 = p1.resolve(2319)
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; throw 1178; return 1172; });
+        Promise p3 = p2
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1172, v); std::cout << '=' << v << '\n'; });
+        Promise p4 = p3
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); std::cout << '=' << v << '\n'; return 1132; });
+        Promise p5 = p4
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+
+        EXPECT_EQ(3, thenCalled);
+
+        EXPECT_EQ(2319 , p1.value<int>());
+        EXPECT_EQ(true , p1.isResolved());
+        EXPECT_EQ(false, p1.isRejected());
+        EXPECT_EQ(true , p1.isFinished());
+        EXPECT_EQ(true , p1.isFulFilled());
+
+        EXPECT_EQ(1178 , p2.value<int>());
+        EXPECT_EQ(false, p2.isResolved());
+        EXPECT_EQ(true , p2.isRejected());
+        EXPECT_EQ(true , p2.isFinished());
+        EXPECT_EQ(true , p2.isFulFilled());
+
+        EXPECT_EQ(1178 , p3.value<int>());
+        EXPECT_EQ(false, p3.isResolved());
+        EXPECT_EQ(true , p3.isRejected());
+        EXPECT_EQ(true , p3.isFinished());
+        EXPECT_EQ(true , p3.isFulFilled());
+
+        EXPECT_EQ(1132 , p4.value<int>());
+        EXPECT_EQ(true , p4.isResolved());
+        EXPECT_EQ(false, p4.isRejected());
+        EXPECT_EQ(true , p4.isFinished());
+        EXPECT_EQ(true , p4.isFulFilled());
+
+        EXPECT_EQ(true , p5.isResolved());
+        EXPECT_EQ(false, p5.isRejected());
+        EXPECT_EQ(true , p5.isFinished());
+        EXPECT_EQ(true , p5.isFulFilled());
+
+    }
+    CHECK_CGULL_PROMISE_GUTS;
+
 };
 
 
@@ -941,6 +1066,106 @@ TEST(PromiseBase, then_compilation)
         { auto next = Promise{}.then([]() { return Promise{}; }); };
         { auto next = Promise{}.resolve(1).then([]() { return Promise{}.resolve(2); }); };
         { auto next = Promise{}.then([]() { return Promise{}.resolve(2); }); };
+    }
+
+    CHECK_CGULL_PROMISE_GUTS;
+};
+
+
+TEST(PromiseBase, rescue_compilation)
+{
+    {
+        CGull::SyncHandler::useForThisThread();
+
+        try
+        {
+            ChainTestHelper chain = {1,3};
+            Promise{}.resolve(1)
+                .then([&](int v){ CHAINV; throw 3; return 2;})
+                .rescue([&](int v){ CHAINV; });
+            EXPECT_EQ(0, chain.isFailed());
+        }
+        catch(...) { EXPECT_FALSE(1); };
+
+        try
+        {
+            ChainTestHelper chain = { 1,3 };
+            Promise{}.resolve(1)
+                .then([&](int v) { CHAINV; throw "3"; return 2; })
+                .rescue([&](const char* _v) { int v = std::atoi(_v); CHAINV; });
+            EXPECT_EQ(0, chain.isFailed());
+        }
+        catch(...) { EXPECT_FALSE(1); };
+
+        try
+        {
+            ChainTestHelper chain = { 1,3 };
+            Promise{}.resolve(1)
+                .then([&](int v) { CHAINV; throw std::any{3}; return std::any{2}; })
+                .rescue([&](std::any _v) { int v = std::any_cast<int>(_v); CHAINV; });
+            EXPECT_EQ(0, chain.isFailed());
+        }
+        catch(...) { EXPECT_FALSE(1); };
+
+        {
+            bool catchCalled = false;
+            try
+            {
+                ChainTestHelper chain = { 1,3 };
+                Promise{}.resolve(1)
+                    .then([&](int v) { CHAINV; throw 3.0f; return 2; })
+                    .rescue([&](float v) { CHAINV; });
+                EXPECT_EQ(0, chain.isFailed());
+            }
+            catch(std::runtime_error e)
+            {
+                catchCalled = true;
+            }
+            catch(...) { EXPECT_FALSE(1); };
+
+            EXPECT_TRUE(catchCalled);
+        }
+
+
+        //try
+        //{
+        //    ChainTestHelper chain = {1,3};
+        //    Promise{}.resolve(1)
+        //        .then([&](int v){ CHAINV; throw 3;})
+        //        .rescue([&](int v){ CHAINV; });
+        //    EXPECT_EQ(0, chain.isFailed());
+        //}
+        //catch(...) { EXPECT_FALSE(1); };
+
+        //try
+        //{
+        //    ChainTestHelper chain = { 1,3 };
+        //    Promise{}.resolve(1)
+        //        .then([&](int v) { CHAINV; throw "3";})
+        //        .rescue([&](const char* _v) { int v = std::atoi(_v); CHAINV; });
+        //    EXPECT_EQ(0, chain.isFailed());
+        //}
+        //catch(...) { EXPECT_FALSE(1); };
+
+        {
+            bool catchCalled = false;
+            try
+            {
+                ChainTestHelper chain = { 1,3 };
+                Promise{}.resolve(1)
+                    .then([&](int v) { CHAINV; throw 3.0f; })
+                    .rescue([&](float v) { CHAINV; });
+                EXPECT_EQ(0, chain.isFailed());
+            }
+            catch(std::runtime_error e)
+            {
+                catchCalled = true;
+            }
+            catch(...) { EXPECT_FALSE(1); };
+
+            EXPECT_TRUE(catchCalled);
+        }
+
     }
 
     CHECK_CGULL_PROMISE_GUTS;

@@ -32,6 +32,12 @@ public:
     >
     Promise then(_Resolve&& onResolve);
 
+    template<
+        typename _Reject,
+        typename _RejectFunctor = CGull::guts::functor_t<_Reject>
+    >
+    Promise rescue(_Reject&& onReject);
+
     Promise& resolve(const std::any& value);
     Promise& resolve(std::any&& value);
 
@@ -67,7 +73,7 @@ private:
         typename _Resolve,
         typename _Context
     >
-    Promise _then(_Resolve&& onResolve, _Context context);
+    Promise _then(_Resolve&& onResolve, _Context context, bool isResolve);
 
     //! \return outer promise assuming it was already set.
     //Promise _outer() const      { assert(_d.constData()->outer); return _d.constData()->outer; }
@@ -98,6 +104,22 @@ private:
     //! Exception catcher.
     template< typename _Callback >
     void _wrapRescue(_Callback&& callback);
+
+    //! \note lambda [](...) -> void
+    template< typename _Callback >
+    void _wrapRescue(_Callback&& callback, CGull::guts::return_void_tag);
+
+    //! \note lambda [](...) -> std::any
+    template< typename _Callback >
+    void _wrapRescue(_Callback&& callback, CGull::guts::return_any_tag);
+
+    //! \note lambda [](...) -> auto
+    template< typename _Callback >
+    void _wrapRescue(_Callback&& callback, CGull::guts::return_auto_tag);
+
+    //! \note lambda [](...) -> Promise
+    template< typename _Callback >
+    void _wrapRescue(_Callback&& callback, CGull::guts::return_promise_tag);
 
 
 

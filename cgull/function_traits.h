@@ -21,10 +21,11 @@ namespace CGull::guts
     struct one_of_types : std::disjunction< std::is_same<_OtherT, _T> ... >::type {};
 
     //! Function return value tagging
-    struct return_auto_tag {};
-    struct return_void_tag {};
-    struct return_any_tag {};
-    struct return_promise_tag {};
+    struct return_tag {};
+    struct return_auto_tag : return_tag {};
+    struct return_void_tag : return_tag {};
+    struct return_any_tag : return_tag {};
+    struct return_promise_tag : return_tag {};
 
     // template<> struct function_return_value_traits< ... >
     template< typename _T >

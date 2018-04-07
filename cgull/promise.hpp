@@ -17,7 +17,7 @@ template <
     typename _Resolve,
     typename _Context
 > inline
-Promise Promise::_then(_Resolve&& onResolve, _Context context)
+Promise Promise::_then(_Resolve&& onResolve, _Context context, bool isResolve)
 {
     (void)context; //!< \todo implement contexts
 
@@ -52,7 +52,7 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context)
         };
 
     // we don't need to call handler cause 'next' was just created
-    next._d->setFinisherLocal(std::move(wrappedFinisher), true);
+    next._d->setFinisherLocal(std::move(wrappedFinisher), isResolve);
     next._d->bindInnerLocal(_d, CGull::LastBound);
 
     // async bind 'next' as 'outer' to 'this' cause this thread might not be the thread of 'this'.
@@ -160,7 +160,17 @@ template<
 >
 Promise Promise::then(_Resolve&& onResolve)
 {
-    return _then(std::forward<_ResolveFunctor>(_ResolveFunctor{onResolve}), nullptr);
+    return _then(std::forward<_ResolveFunctor>(_ResolveFunctor{onResolve}), nullptr, true);
+}
+
+
+template<
+    typename _Reject,
+    typename _RejectFunctor
+>
+Promise Promise::rescue(_Reject&& onReject)
+{
+    return _then(std::forward<_RejectFunctor>(_RejectFunctor{ onReject }), nullptr, false);
 }
 
 
@@ -209,7 +219,7 @@ void Promise::_wrapRescue(_Callback&& callback)
 {
     try
     {
-        _wrapCallbackReturn(callback);
+        _wrapRescue(callback, typename CGull::guts::function_traits<_Callback>::result_tag{});
     }
     catch(const std::exception& e)
     {
@@ -221,14 +231,75 @@ void Promise::_wrapRescue(_Callback&& callback)
         _d->finishState = CGull::Skipped;
         _d->fulfillLocal(e, CGull::Rejected);
     }
+    catch(std::any e)
+    {
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(std::move(e), CGull::Rejected);
+    }
     catch(...)
     {
         //! \todo exceptions path-through
         throw std::runtime_error(
             "Promise::runFinisher: Uncaught exception inside callback "
-            "(valid exception types: std::exception, const char*)"
+            "(valid exception types: std::exception, const char*, std::any, CGull::guts::functor_t<>::result_type)"
         );
     };
+}
+
+
+//! \note lambda [](...) -> auto
+template< typename _Callback > inline
+void Promise::_wrapRescue(_Callback&& callback, CGull::guts::return_auto_tag)
+{
+    try
+    {
+        _wrapCallbackReturn(callback);
+    }
+    catch(typename CGull::guts::functor_t<_Callback>::result_type& e)
+    {
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(std::any{e}, CGull::Rejected);
+    };
+}
+
+
+//! \note lambda [](...) -> Promise
+template< typename _Callback > inline
+void Promise::_wrapRescue(_Callback&& callback, CGull::guts::return_promise_tag)
+{
+    try
+    {
+        _wrapCallbackReturn(callback);
+    }
+    catch(Promise e)
+    {
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(std::any{e}, CGull::Rejected);
+    };
+}
+
+
+//! \note lambda [](...) -> std::any
+template< typename _Callback > inline
+void Promise::_wrapRescue(_Callback&& callback, CGull::guts::return_any_tag)
+{
+    try
+    {
+        _wrapCallbackReturn(callback);
+    }
+    catch(std::any& e)
+    {
+        _d->finishState = CGull::Skipped;
+        _d->fulfillLocal(std::move(e), CGull::Rejected);
+    };
+}
+
+
+//! \note lambda [](...) -> void
+template< typename _Callback > inline
+void Promise::_wrapRescue(_Callback&& callback, CGull::guts::return_void_tag)
+{
+    _wrapCallbackReturn(callback);
 }
 
 
