@@ -999,10 +999,12 @@ TEST(PromiseBase, abort)
 
         a
             .then([&]() { thenCalled.fetch_add(1); })
-            .then([&]() { thenCalled.fetch_add(1); });
+            .then([&]() { thenCalled.fetch_add(1); })
+            .rescue([&]() { thenCalled.fetch_add(1); });
 
         a
             .then([&]() { thenCalled.fetch_add(1); })
+            .rescue([&]() { thenCalled.fetch_add(1); })
             .then([&]() { thenCalled.fetch_add(1); });
 
         EXPECT_EQ(0, thenCalled);
@@ -1125,27 +1127,6 @@ TEST(PromiseBase, rescue_compilation)
 
             EXPECT_TRUE(catchCalled);
         }
-
-
-        //try
-        //{
-        //    ChainTestHelper chain = {1,3};
-        //    Promise{}.resolve(1)
-        //        .then([&](int v){ CHAINV; throw 3;})
-        //        .rescue([&](int v){ CHAINV; });
-        //    EXPECT_EQ(0, chain.isFailed());
-        //}
-        //catch(...) { EXPECT_FALSE(1); };
-
-        //try
-        //{
-        //    ChainTestHelper chain = { 1,3 };
-        //    Promise{}.resolve(1)
-        //        .then([&](int v) { CHAINV; throw "3";})
-        //        .rescue([&](const char* _v) { int v = std::atoi(_v); CHAINV; });
-        //    EXPECT_EQ(0, chain.isFailed());
-        //}
-        //catch(...) { EXPECT_FALSE(1); };
 
         {
             bool catchCalled = false;
