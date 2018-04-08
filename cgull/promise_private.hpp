@@ -21,6 +21,8 @@ namespace CGull::guts
     inline
     PromisePrivate::~PromisePrivate()
     {
+        handler->deleteHandlerData(handlerData);
+
         std::cout
             << "PromisePrivate::_dtor() -- "
             << std::dec << (--_debugPrivateCounter())
@@ -110,7 +112,7 @@ namespace CGull::guts
             if( (fnState == CGull::Awaiting && innersFFState == CGull::Resolved && finisherIsResolver) ||
                 (fnState == CGull::Awaiting && innersFFState == CGull::Rejected && !finisherIsResolver))
             {
-                assert(!!finisher);
+                assert(!!finisher && "tryFinish() can't be called without callback set.");
 
                 finisher(CGull::Execute, std::move(innersFFResult)); // not async
                 finisher = nullptr;
@@ -168,16 +170,22 @@ namespace CGull::guts
 
 
     inline
-    void PromisePrivate::deleteThisLocal()
+    bool PromisePrivate::deleteThisLocal()
     {
         const auto refs = _ref.load();
 
+        assert(refs);
+
         if((refs == 2+outers.size() && inners.empty()) //< check for root promise
-            || refs <= 1)                              //< last ref
+            || refs == 1)                              //< last ref
         {
             if(!isFulFilled())
                 fulfillLocal(std::move(std::any{}), CGull::Aborted);
+
+            return true;
         };
+
+        return false;
     }
 
 

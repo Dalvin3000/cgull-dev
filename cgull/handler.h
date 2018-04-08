@@ -36,6 +36,7 @@ namespace CGull
 
         virtual ~Handler() = default;
 
+        //! Probably sync.
         virtual void setFinisher(PrivateType self, CallbackFunctor&& callback, bool isResolve) = 0;
         virtual void bindInner(PrivateType self, PrivateType inner, CGull::WaitType) = 0;
         virtual void bindOuter(PrivateType self, PrivateType outer) = 0;
@@ -44,7 +45,8 @@ namespace CGull
         virtual void fulfill(PrivateType self, std::any&& value, bool isResolve) = 0;
         virtual void deleteThis(PrivateType self) = 0;
         virtual void init(PrivateType self) = 0;
-        virtual void deleteHandlerData(PrivateType self) = 0;
+        //! Probably sync.
+        virtual void deleteHandlerData(void* data) = 0;
 
         //! \return handler for current thread.
         static Handler* forThisThread();

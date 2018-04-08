@@ -22,7 +22,7 @@ namespace CGull
         void fulfill(PrivateType self, std::any&& value, bool isResolve) override;
         void deleteThis(PrivateType self) override;
         void init(PrivateType self) override;
-        void deleteHandlerData(PrivateType self) override;
+        void deleteHandlerData(void* data) override;
 
         static void useForThisThread();
 

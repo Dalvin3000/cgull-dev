@@ -75,7 +75,7 @@ namespace CGull
         self->deleteThisLocal();
     }
 
-    void SyncHandler::deleteHandlerData(PrivateType self)
+    void SyncHandler::deleteHandlerData(void* data)
     {
     }
 

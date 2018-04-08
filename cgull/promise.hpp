@@ -103,6 +103,7 @@ Promise::Promise()
     : _d(new CGull::guts::PromisePrivate{})
 {
     _d->handler = CGull::Handler::forThisThread(); //!< \todo implement contexts
+    _d->handler->init(_d);
 }
 
 

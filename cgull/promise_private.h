@@ -109,7 +109,7 @@ namespace CGull::guts
         void unbindOuters();
 
         //! Checks promise for utilization state.
-        void deleteThisLocal();
+        bool deleteThisLocal();
 
         bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
         bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
