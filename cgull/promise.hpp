@@ -23,9 +23,6 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context, bool isResolve)
 
     auto D = _d.data();
 
-    // probably unnecessary check
-    assert((bool)onResolve);
-
     // chained outer
     Promise next;
 
@@ -56,54 +53,16 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context, bool isResolve)
     next._d->bindInnerLocal(_d, CGull::LastBound);
 
     // async bind 'next' as 'outer' to 'this' cause this thread might not be the thread of 'this'.
-    _handleBindOuter(next);
+    _handleBindOuter(next._d);
 
     return next;
 }
 
 
 inline
-void Promise::_handleFulfilled()
+void Promise::_handleBindOuter(PrivateType outer)
 {
-    _d->handler->tryFinish(_d);
-}
-
-
-inline
-void Promise::_handleBindInner(Promise inner, CGull::WaitType waitType)
-{
-    _d->handler->bindInner(_d, inner._d, waitType);
-}
-
-
-inline
-void Promise::_handleBindOuter(Promise outer)
-{
-    _d->handler->bindOuter(_d, outer._d);
-}
-
-
-inline
-void Promise::_handleAbort()
-{
-    _d->handler->abort(_d);
-}
-
-
-inline
-void Promise::_handleDeleteThis()
-{
-    auto D = _d.data();
-
-    if(D)
-        D->handler->deleteThis(_d);
-}
-
-
-inline
-void Promise::_handleSetFinisher(CGull::CallbackFunctor&& callback, bool isResolve)
-{
-    _d->handler->setFinisher(_d, std::forward<decltype(callback)>(callback), isResolve);
+    _d->handler->bindOuter(_d, outer);
 }
 
 
@@ -150,7 +109,10 @@ Promise::Promise()
 inline
 Promise::~Promise()
 {
-    _handleDeleteThis();
+    auto D = _d.data();
+
+    if(D)
+        D->handler->deleteThis(_d);
 }
 
 

@@ -18,11 +18,12 @@ class /*CGULL_API*/ Promise
 {
     using PrivateType = CGull::guts::PromisePrivate::Type;
 
+public:
+
     //! Constructs promise from raw private data.
+    explicit
     Promise(const PrivateType& from);
 
-
-public:
     Promise();
     ~Promise();
 
@@ -73,12 +74,7 @@ private:
     // ====  handler calls  ====
 
 
-    void _handleFulfilled();
-    void _handleBindInner(Promise inner, CGull::WaitType waitType);
-    void _handleBindOuter(Promise outer);
-    void _handleAbort();
-    void _handleDeleteThis();
-    void _handleSetFinisher(CGull::CallbackFunctor&& callback, bool isResolve);
+    void _handleBindOuter(PrivateType outer);
     template< typename _T >
     void _handleFulfill(_T&& value, bool isResolve);
     template< typename _T >
