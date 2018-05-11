@@ -1,0 +1,16 @@
+#pragma once
+
+// Pass this definition to obtain detailed debug info.
+#cmakedefine CGULL_DEBUG_GUTS
+
+// Helps escape 'Promise' symbol as 'CGull::Promise'.
+#cmakedefine CGULL_USE_NAMESPACE
+
+// Defined if boost has been found.
+#cmakedefine CGULL_HAS_BOOST
+
+// Tells that this library built as shared library.
+#cmakedefine cgull_SHARED
+
+// If 'cgull_SHARED' passed then this option must be also set when building cgull.
+/* #undef cgull_EXPORTS */
