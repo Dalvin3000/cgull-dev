@@ -1,6 +1,10 @@
 #define GOOGLE_GLOG_DLL_DECL
 #define GTEST_SHUFFLE 0
 
+//#define _ENABLE_ATOMIC_ALIGNMENT_FIX
+//#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS true
+//#define _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING true
+
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>

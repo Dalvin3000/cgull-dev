@@ -22,7 +22,6 @@ namespace CGull
         return h;
     }
 
-
     std::unique_ptr<Handler>& Handler::_threadHandler()
     {
         thread_local static std::unique_ptr<Handler> h = 0;
@@ -31,6 +30,7 @@ namespace CGull
     }
 
 
+    // =====  SyncHandler  =====
 
     SyncHandler::~SyncHandler()
     {
