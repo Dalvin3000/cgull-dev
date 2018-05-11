@@ -3,6 +3,8 @@
 
 #pragma once
 
+#pragma warning(disable: 4996)
+
 #include <any>
 #include <atomic>
 #include <vector>
@@ -10,6 +12,15 @@
 #include <typeinfo>
 #include <type_traits>
 #include <memory>
+#if defined(CGULL_DEBUG_GUTS)
+#   include <mutex>
+#   include <deque>
+#   include <algorithm>
+#   include <iostream>
+#   include <string>
+#endif
+
+
 
 #define QGULL_FULL_ASYNC 1
 
@@ -164,9 +175,62 @@ namespace CGull
 
 namespace CGull::guts
 {
+    class PromisePrivate;
+
 #if defined(CGULL_DEBUG_GUTS)
     CGULL_API std::atomic_int& _debugPrivateCounter();
+
+    CGULL_API std::mutex& _debugCoutMutex();
+
+    class CGULL_API _DebugPromiseList
+    {
+    public:
+
+        static _DebugPromiseList& instance();
+
+        void add(PromisePrivate* pPrivate);
+        void remove(PromisePrivate* pPrivate);
+
+    private:
+        std::deque<PromisePrivate*> _promises;
+        std::mutex                  _guard;
+    };
+
+    void _DebugSetThreadName(std::thread& thread, const std::string& name);
+
 #endif
+
+
+    class Log
+    {
+        Log(const Log&) = delete;
+        Log(Log&&) = delete;
+        Log& operator=(const Log&) = delete;
+        Log& operator=(Log&&) = delete;
+
+    public:
+        Log()
+        {
+#if defined(CGULL_DEBUG_GUTS)
+            _debugCoutMutex().lock();
+#endif
+        }
+        ~Log()
+        {
+#if defined(CGULL_DEBUG_GUTS)
+            _debugCoutMutex().unlock();
+#endif
+        }
+
+        template< typename _T >
+        Log& operator<<(const _T& data)
+        {
+#if defined(CGULL_DEBUG_GUTS)
+            std::cout << data;
+#endif
+            return *this;
+        }
+    };
 
 
 
