@@ -1,7 +1,13 @@
-build
-.vscode
 _/
 _install
-*.dir
-x64
+.hgignore
 .vs
+.vscode
+*.dir
+build*
+cmake-gui.bat
+promise templates.txt
+Untitled-1.txt
+x64
+*.orig
+*.old
