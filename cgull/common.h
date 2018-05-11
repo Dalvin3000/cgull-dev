@@ -5,6 +5,10 @@
 
 #pragma warning(disable: 4996)
 
+#if !defined(CGULL_CMAKE_BUILD)
+#   include "config.no_cmake.h"
+#endif
+
 #include <any>
 #include <atomic>
 #include <vector>
@@ -21,14 +25,7 @@
 #endif
 
 
-
-#define QGULL_FULL_ASYNC 1
-
-#if 0
-#   define CGULL_DEBUG
-#endif
-
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_MSC_VER)
 #   define CGULL_VISIBILITY_HELPER_DLL_IMPORT __declspec(dllimport)
 #   define CGULL_VISIBILITY_HELPER_DLL_EXPORT __declspec(dllexport)
 #   define CGULL_VISIBILITY_HELPER_DLL_LOCAL
@@ -44,8 +41,8 @@
 #   endif
 #endif
 
-#if defined(CGULL_SHARED)
-#   if defined(CGULL_EXPORTS)
+#if defined(cgull_SHARED)
+#   if defined(cgull_EXPORTS)
 #       define CGULL_API    CGULL_VISIBILITY_HELPER_DLL_EXPORT
 #       define CGULL_EXTERN
 #   else
@@ -156,9 +153,9 @@ namespace CGull
 
     using AtomicWaitType = std::atomic<WaitType>;
 
-    //! Lamda return sugar.
+    //! Lambda return sugar.
     static constexpr bool Abort = true;
-    //! Lamda return sugar.
+    //! Lambda return sugar.
     static constexpr bool Execute = false;
 
     using AnyList = std::vector<std::any>;
@@ -182,18 +179,16 @@ namespace CGull::guts
 
     CGULL_API std::mutex& _debugCoutMutex();
 
-    class CGULL_API _DebugPromiseList
+    struct CGULL_API _DebugPromiseList
     {
-    public:
+        std::deque<PromisePrivate*>* _promises;
+        std::mutex*                  _guard;
+
 
         static _DebugPromiseList& instance();
 
         void add(PromisePrivate* pPrivate);
         void remove(PromisePrivate* pPrivate);
-
-    private:
-        std::deque<PromisePrivate*> _promises;
-        std::mutex                  _guard;
     };
 
     void _DebugSetThreadName(std::thread& thread, const std::string& name);

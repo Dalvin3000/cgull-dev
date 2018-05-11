@@ -5,20 +5,22 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.9.0)
 
 PROJECT(cgull)
 
+# some base and naming vars
+OPTION(CGULL_DEBUG_GUTS "Set to true to obtain expensive and full debug information.")
+OPTION(CGULL_USE_NAMESPACE "Helps escape 'Promise' symbol as 'CGull::Promise'.")
+
 SET(ROOT ${PROJECT_NAME})
 
-SET(PROJECT_NAME_STATIC         ${PROJECT_NAME}-static)
+SET(PROJECT_NAME_STATIC         ${PROJECT_NAME}-s)
 SET(PROJECT_NAME_QT             ${PROJECT_NAME}-qt)
-SET(PROJECT_NAME_QT_STATIC      ${PROJECT_NAME}-qt-static)
+SET(PROJECT_NAME_QT_STATIC      ${PROJECT_NAME}-qt-s)
 SET(PROJECT_NAME_UV             ${PROJECT_NAME}-uv)
-SET(PROJECT_NAME_UV_STATIC      ${PROJECT_NAME}-uv-static)
+SET(PROJECT_NAME_UV_STATIC      ${PROJECT_NAME}-uv-s)
 
-SET(CMAKE_DEBUG_POSTFIX -d)
+SET(_CMAKE_DEBUG_POSTFIX d)
 
 
-#################################################
-##                   sources
-
+# collecting sources
 FILE(GLOB MAIN      FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} Promise PromiseQt PromiseUV)
 FILE(GLOB TESTS     FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} tests/*.h              tests/*.cpp             )
 FILE(GLOB GUTS_S    FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}                        ${ROOT}/*.cpp           )
@@ -32,67 +34,143 @@ SET(GUTS    ${GUTS_S}    ${GUTS_H})
 SET(GUTS_UV ${GUTS_UV_S} ${GUTS_UV_H})
 SET(GUTS_QT ${GUTS_QT_S} ${GUTS_QT_H})
 
+# grouping hack for some IDEs
 FILE(GLOB GUTS_S_SG FOLLOW_SYMLINKS ${CMAKE_CURRENT_SOURCE_DIR}/${ROOT}/*.hpp)
 SOURCE_GROUP("Source Files" FILES ${GUTS_S_SG})
 
 
+# external deps search
 FIND_PACKAGE(Threads REQUIRED)
+FIND_PACKAGE(Boost)
 
-MACRO(MAKE_LIB PNAME OPT)
-    ADD_LIBRARY(${PNAME} ${OPT} ${ARGN})
 
+# common library creation macro
+FUNCTION(MAKE_LIB PNAME)
+    SET(o SHARED)
+    SET(s VERSION)
+    SET(m SOURCES PRIVATE_HEADERS PUBLIC_HEADERS)
+    CMAKE_PARSE_ARGUMENTS(_ "${o}" "${s}" "${m}" ${ARGN})
+
+    # default - static linking
+    IF(__SHARED)
+        SET(LINKAGE SHARED)
+    ELSE()
+        SET(LINKAGE STATIC)
+    ENDIF()
+
+    # make library
+    ADD_LIBRARY(${PNAME} ${LINKAGE}  ${__SOURCES} ${__PRIVATE_HEADERS} ${__PUBLIC_HEADERS})
+
+    # compiler feature activation
     TARGET_COMPILE_FEATURES(${PNAME} PUBLIC cxx_std_17)
     IF(MSVC)
-        # SET_TARGET_PROPERTIES(${PNAME} PROPERTIES COMPILE_FLAGS "/std:c++latest")
         TARGET_COMPILE_OPTIONS(${PNAME} PUBLIC "/std:c++latest")
-    ENDIF()
-
-    TARGET_LINK_LIBRARIES(${PNAME} PUBLIC Threads::Threads)
-    TARGET_INCLUDE_DIRECTORIES(${PNAME} INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<INSTALL_INTERFACE:include> )
-
-    IF("${OPT}" STREQUAL "SHARED")
-        TARGET_COMPILE_DEFINITIONS(${PNAME}
-            PUBLIC CGULL_SHARED
-            PRIVATE CGULL_EXPORTS)
     ELSE()
-        TARGET_COMPILE_DEFINITIONS(${PNAME}
-            PUBLIC CGULL_STATIC)
+        TARGET_COMPILE_OPTIONS(${PNAME} PUBLIC "-std=c++1z")
     ENDIF()
-ENDMACRO()
+
+    # common link/comp options
+    TARGET_LINK_LIBRARIES(${PNAME} PUBLIC Threads::Threads)
+    TARGET_INCLUDE_DIRECTORIES(${PNAME}
+        INTERFACE  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<INSTALL_INTERFACE:include>
+    )
+
+    # library version
+    IF(__VERSION)
+        SET_TARGET_PROPERTIES(${PNAME}
+            PROPERTIES  VERSION ${__VERSION}
+        )
+    ENDIF()
+
+    # headers
+    SET_TARGET_PROPERTIES(${PNAME}
+        PROPERTIES
+            PRIVATE_HEADER  "${__PRIVATE_HEADERS}"
+            PUBLIC_HEADER  "${__PUBLIC_HEADERS}"
+    )
+
+    # shared/static command defines
+    STRING(REGEX REPLACE "[-:]" "_" PNAME_SAFE "${PNAME}")
+
+    IF(__SHARED)
+        TARGET_COMPILE_DEFINITIONS(${PNAME} PUBLIC  ${PNAME_SAFE}_SHARED)
+        SET_TARGET_PROPERTIES(${PNAME} PROPERTIES  DEBUG_POSTFIX -${_CMAKE_DEBUG_POSTFIX})
+        SET(${PNAME_SAFE}_SHARED true PARENT_SCOPE) # for config.no_cmake.h
+    ELSE()
+        TARGET_COMPILE_DEFINITIONS(${PNAME} PUBLIC  ${PNAME_SAFE}_STATIC)
+        SET_TARGET_PROPERTIES(${PNAME} PROPERTIES  DEBUG_POSTFIX ${_CMAKE_DEBUG_POSTFIX})
+    ENDIF()
+ENDFUNCTION()
 
 
-#################################################
-##             main library shared
+# main lib in shared and static form
+MAKE_LIB(${PROJECT_NAME} SHARED
+    VERSION  0.1.0
+    SOURCES  ${GUTS_S}
+    PUBLIC_HEADERS  ${MAIN}
+    PRIVATE_HEADERS  ${GUTS_H}
+)
+MAKE_LIB(${PROJECT_NAME_STATIC} STATIC
+    VERSION  0.1.0
+    SOURCES  ${GUTS_S}
+    PUBLIC_HEADERS  ${MAIN}
+    PRIVATE_HEADERS  ${GUTS_H}
+)
 
-MAKE_LIB(${PROJECT_NAME} SHARED ${MAIN} ${GUTS})
+# cmake build marker
+TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_CMAKE_BUILD)
+TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_CMAKE_BUILD)
 
-INSTALL(FILES ${MAIN}
-    DESTINATION include )
-INSTALL(FILES ${GUTS_H}
-    DESTINATION include/cgull )
-INSTALL(TARGETS ${PROJECT_NAME}
-    DESTINATION lib
-    EXPORT ${PROJECT_NAME}-config )
+# turn on debug capabilities
+IF(CGULL_DEBUG_GUTS)
+    IF(TARGET Boost::boost)
+        SET(CGULL_HAS_BOOST true)
+
+        TARGET_LINK_LIBRARIES(${PROJECT_NAME} PUBLIC Boost::boost)
+        TARGET_LINK_LIBRARIES(${PROJECT_NAME_STATIC} PUBLIC Boost::boost)
+        TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_HAS_BOOST=1)
+        TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_HAS_BOOST=1)
+    ENDIF()
+
+    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_DEBUG_GUTS)
+    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_DEBUG_GUTS)
+ENDIF()
+
+# turn on symbol escape option
+IF(CGULL_USE_NAMESPACE)
+    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_USE_NAMESPACE)
+    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_USE_NAMESPACE)
+ENDIF()
 
 
-#################################################
-##             main library static
+# export compatibility header
+CONFIGURE_FILE(
+    config.no_cmake.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/config.no_cmake.h
+)
 
-MAKE_LIB(${PROJECT_NAME_STATIC} STATIC ${MAIN} ${GUTS})
+# installing main libraries
+INSTALL(
+    TARGETS
+        ${PROJECT_NAME}
+        ${PROJECT_NAME_STATIC}
+    EXPORT  ${PROJECT_NAME}-config
 
-INSTALL(TARGETS ${PROJECT_NAME_STATIC}
-    DESTINATION lib
-    EXPORT ${PROJECT_NAME}-config )
-
-
-#################################################
-##             main library common
-
-INSTALL(EXPORT ${PROJECT_NAME}-config
+    RUNTIME DESTINATION  bin
+    LIBRARY DESTINATION  lib
+    ARCHIVE DESTINATION  lib
+    PUBLIC_HEADER DESTINATION   include
+    PRIVATE_HEADER DESTINATION  include/cgull
+)
+INSTALL(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/config.no_cmake.h
+    DESTINATION include/cgull
+)
+INSTALL(
+    EXPORT ${PROJECT_NAME}-config
     NAMESPACE ${PROJECT_NAME}::
-    DESTINATION lib/cmake )
+    DESTINATION lib/cmake
+)
 
 
 #################################################

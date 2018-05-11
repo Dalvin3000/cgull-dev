@@ -7,12 +7,14 @@
 #include <Promise>
 
 #include <deque>
+#include <chrono>
 #include <boost/lockfree/queue.hpp>
 
 #if defined(CGULL_DEBUG_GUTS)
 #   define CHECK_CGULL_PROMISE_GUTS \
     EXPECT_EQ(0, CGull::guts::_debugPrivateCounter()); \
-    CGull::guts::_debugPrivateCounter().store(0);
+    CGull::guts::_debugPrivateCounter().store(0); \
+    Log() << '\n';
 #else
 #   define CHECK_CGULL_PROMISE_GUTS
 #endif
@@ -44,8 +46,45 @@ std::string type_name()
 }
 #endif
 
+#if defined(CGULL_DEBUG_GUTS)
+auto _debugPromiseList = &CGull::guts::_DebugPromiseList::instance();
+#endif
+
+#define WAIT_FOR(s, t) \
+    for(int i = 0; i < (s); ++i) { if(t()) break; std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+
 
 #define CHAINV chain += v
+
+class Log
+{
+    Log(const Log&) = delete;
+    Log(Log&&) = delete;
+    Log& operator=(const Log&) = delete;
+    Log& operator=(Log&&) = delete;
+
+public:
+    Log()
+    {
+#if defined(CGULL_DEBUG_GUTS)
+        CGull::guts::_debugCoutMutex().lock();
+#endif
+    }
+    ~Log()
+    {
+#if defined(CGULL_DEBUG_GUTS)
+        CGull::guts::_debugCoutMutex().unlock();
+#endif
+    }
+
+    template< typename _T >
+    Log& operator<<(const _T& data)
+    {
+        std::cout << data;
+        return *this;
+    }
+};
+
 
 class ChainTestHelper
 {
@@ -59,7 +98,7 @@ public:
         , results{ 64 }
     { }
 
-    void append(int v) { results.push(v); std::cout << '=' << v << '\n'; }
+    void append(int v) { results.push(v); Log() << '=' << v << '\n'; }
     ChainTestHelper& operator+=(int v) { append(v); return *this; }
 
     uint64_t isFailed()
@@ -76,10 +115,10 @@ public:
             actual.push_back(v);
         };
 
-        for(int i = 0, ie = actual.size(); i != ie; ++i)
-            actualMask |= 1 << i;
-        for(int i = 0, ie = expected.size(); i != ie; ++i)
-            expectedMask |= 1 << i;
+        for(size_t i = 0, ie = actual.size(); i != ie; ++i)
+            actualMask |= 1ULL << i;
+        for(size_t i = 0, ie = expected.size(); i != ie; ++i)
+            expectedMask |= 1ULL << i;
 
         if(actualMask != expectedMask)
             return actualMask;
@@ -244,6 +283,7 @@ auto guts__callback_traits__args_tags__fn(_Cb cb)
 TEST(guts__callback_traits, static_asserts__args_tags)
 {
     using namespace CGull::guts;
+    using Log = CGull::guts::Log;
 
     {
         auto r = guts__callback_traits__args_tags__fn([](void){});
@@ -270,7 +310,7 @@ TEST(guts__callback_traits, static_asserts__args_tags)
             "`function_traits<>::args_tag` for one `std::any` argument doesn't work"
         );
 
-        std::cout << type_name< function_traits< decltype(c) >::arg_safe<0>::type >() << '\n';
+        Log() << type_name< function_traits< decltype(c) >::arg_safe<0>::type >() << '\n';
 
         auto r = guts__callback_traits__args_tags__fn([](std::any){});
         static_assert(std::is_same< decltype(r), int64_t >::value, "`function_traits<>::args_tag` for one `std::any` argument doesn't work");
@@ -304,41 +344,41 @@ TEST(Promise, test)
 {
 #define TEST_OUT(x)  TOS_TNoReference(x) << ": " << (x)
 
-    std::cout << TEST_OUT( sizeof(std::shared_ptr<QThread>) ) << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(std::shared_ptr<QThread>) ) << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(QSharedData) ) << '\n';
-    std::cout << TEST_OUT( sizeof(QExplicitlySharedDataPointer<QSharedData>) ) << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(QSharedData) ) << '\n';
+    Log() << TEST_OUT( sizeof(QExplicitlySharedDataPointer<QSharedData>) ) << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
-    std::cout << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(std::deque<intptr_t>) ) << '\n';
-    std::cout << TEST_OUT( sizeof(std::vector<intptr_t>) ) << '\n';
-    std::cout << TEST_OUT( sizeof(QList<intptr_t>) ) << '\n';
-    std::cout << TEST_OUT( sizeof(QListData) ) << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(std::deque<intptr_t>) ) << '\n';
+    Log() << TEST_OUT( sizeof(std::vector<intptr_t>) ) << '\n';
+    Log() << TEST_OUT( sizeof(QList<intptr_t>) ) << '\n';
+    Log() << TEST_OUT( sizeof(QListData) ) << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(std::any) ) << '\n';
-    std::cout << TEST_OUT( sizeof(QVariant::Private) ) << '\n';
-    std::cout << TEST_OUT( sizeof(QVariant) )  << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(std::any) ) << '\n';
+    Log() << TEST_OUT( sizeof(QVariant::Private) ) << '\n';
+    Log() << TEST_OUT( sizeof(QVariant) )  << '\n'<< '\n';
 
-    std::cout << TEST_OUT( sizeof(CGull::guts::PromisePrivate) )  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::result))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::finisher))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::inners))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::outer))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::handler))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::state))  << '\n';
-    std::cout << TEST_OUT(sizeof(CGull::guts::PromisePrivate::wait))  << '\n';
-    std::cout << TEST_OUT( sizeof(CGull::guts::CallbackFunctor) )  << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::PromisePrivate) )  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::result))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::finisher))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::inners))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::outer))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::handler))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::state))  << '\n';
+    Log() << TEST_OUT(sizeof(CGull::guts::PromisePrivate::wait))  << '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::CallbackFunctor) )  << '\n'<< '\n';
 
     std::atomic_uint a = 0;
 
-    std::cout << a.fetch_sub(1) << '\n'; std::cout << a.fetch_add(1)<< '\n';
+    Log() << a.fetch_sub(1) << '\n'; Log() << a.fetch_add(1)<< '\n';
 
     CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate> testv(new CGull::guts::PromisePrivate());
 
-    std::cout << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
-    std::cout << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::SharedData) ) << '\n';
+    Log() << TEST_OUT( sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>) ) << '\n'<< '\n';
 };
 #endif
 
@@ -389,7 +429,7 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.resolve(2318)
-            .then([&](int v) { ++thenCalled; EXPECT_EQ(2318, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2318, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(1, thenCalled);
 
@@ -412,7 +452,7 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.reject(2319)
-            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(0, thenCalled);
 
@@ -434,9 +474,9 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.reject(2319)
-            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1172; });
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1172; });
         Promise p3 = p2
-            .then([&](int v) { ++thenCalled; EXPECT_EQ(1172, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v) { ++thenCalled; EXPECT_EQ(1172, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(0, thenCalled);
 
@@ -466,11 +506,11 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.reject(2319)
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1172; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1172; });
         Promise p3 = p2
-            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; return 1132; });
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1132; });
         Promise p4 = p3
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(2, thenCalled);
 
@@ -505,11 +545,11 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.resolve(2319)
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; throw 1178; return 1172; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; throw 1178; return 1172; });
         Promise p3 = p2
-            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); std::cout << '=' << v << '\n'; return 1132; });
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); Log() << '=' << v << '\n'; return 1132; });
         Promise p4 = p3
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(3, thenCalled);
 
@@ -544,13 +584,13 @@ TEST(PromiseBase, fulfill_simple)
 
         Promise p1;
         Promise p2 = p1.resolve(2319)
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); std::cout << '=' << v << '\n'; throw 1178; return 1172; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; throw 1178; return 1172; });
         Promise p3 = p2
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1172, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1172, v); Log() << '=' << v << '\n'; });
         Promise p4 = p3
-            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); std::cout << '=' << v << '\n'; return 1132; });
+            .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); Log() << '=' << v << '\n'; return 1132; });
         Promise p5 = p4
-            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); std::cout << '=' << v << '\n'; });
+            .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(3, thenCalled);
 
@@ -598,16 +638,16 @@ TEST(PromiseBase, then_simple)
 
         Promise a;
         Promise b = a
-            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
-            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
-            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
             ;
 
         a.resolve(5);
 
         EXPECT_EQ(0x07, thenCalled);
 
-        std::cout << '\n';
+        Log() << '\n';
     }
     CHECK_CGULL_PROMISE_GUTS;
 
@@ -618,17 +658,17 @@ TEST(PromiseBase, then_simple)
 
         Promise a;
         Promise b = a
-            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
             ;
         a.resolve(5);
 
-        b = b.then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
-            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+        b = b.then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
             ;
 
         EXPECT_EQ(0x07, thenCalled);
 
-        std::cout << '\n';
+        Log() << '\n';
     }
     CHECK_CGULL_PROMISE_GUTS;
 
@@ -639,14 +679,14 @@ TEST(PromiseBase, then_simple)
 
         Promise a;
         Promise b = a.resolve(5)
-            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
-            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
-            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
             ;
 
         EXPECT_EQ(0x07, thenCalled);
 
-        std::cout << '\n';
+        Log() << '\n';
     }
     CHECK_CGULL_PROMISE_GUTS;
 
@@ -656,14 +696,14 @@ TEST(PromiseBase, then_simple)
         CGull::SyncHandler::useForThisThread();
 
         Promise b = Promise{}.resolve(5)
-            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); std::cout << '=' << v << '\n'; return 4; })
-            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); std::cout << '=' << v << '\n'; return 7; })
-            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); std::cout << '=' << v << '\n'; })
+            .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+            .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+            .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
             ;
 
         EXPECT_EQ(0x07, thenCalled);
 
-        std::cout << '\n';
+        Log() << '\n';
     }
     CHECK_CGULL_PROMISE_GUTS;
 
@@ -689,7 +729,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -706,7 +746,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -722,7 +762,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -738,7 +778,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
 
 
@@ -760,7 +800,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -779,7 +819,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -797,7 +837,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -815,7 +855,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -834,7 +874,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -853,7 +893,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
     {
         CGull::SyncHandler::useForThisThread();
@@ -872,7 +912,7 @@ TEST(PromiseBase, nested_thens)
         EXPECT_EQ(0, chain.isFailed());
     }
 
-    CHECK_CGULL_PROMISE_GUTS; std::cout << '\n';
+    CHECK_CGULL_PROMISE_GUTS; Log() << '\n';
 
 }
 
@@ -1059,7 +1099,7 @@ TEST(PromiseBase, then_compilation)
         { auto next = Promise{}.resolve(1).then([](std::string) {}); };
         { auto next = Promise{}.resolve(1).then([](std::string&&) {}); };
 
-        { auto next = Promise{}.resolve(1).then([a = 10](int prev) { std::cout << prev + a << '\n'; }); };
+        { auto next = Promise{}.resolve(1).then([a = 10](int prev) { Log() << prev + a << '\n'; }); };
 
         { auto next = Promise{}.resolve(1).then([]() { return 1; }); };
         { auto next = Promise{}.resolve(1).then([]() { return std::string{}; }); };

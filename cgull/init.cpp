@@ -32,28 +32,28 @@ namespace CGull::guts
 
     _DebugPromiseList& _DebugPromiseList::instance()
     {
-        static _DebugPromiseList v;
+        static _DebugPromiseList v{new std::deque<PromisePrivate*>{}, new std::mutex{}};
         return v;
     }
 
     void _DebugPromiseList::add(PromisePrivate* pPrivate)
     {
-        std::unique_lock<std::mutex> lock{ _guard };
+        std::unique_lock<std::mutex> lock{ *_guard };
 
-        const auto i = std::find(_promises.cbegin(), _promises.cend(), pPrivate);
+        const auto i = std::find(_promises->cbegin(), _promises->cend(), pPrivate);
 
-        if(i == _promises.cend())
-            _promises.push_back(pPrivate);
+        if(i == _promises->cend())
+            _promises->push_back(pPrivate);
     }
 
     void _DebugPromiseList::remove(PromisePrivate* pPrivate)
     {
-        std::unique_lock<std::mutex> lock{ _guard };
+        std::unique_lock<std::mutex> lock{ *_guard };
 
-        const auto i = std::find(_promises.cbegin(), _promises.cend(), pPrivate);
+        const auto i = std::find(_promises->cbegin(), _promises->cend(), pPrivate);
 
-        if(i != _promises.cend())
-            _promises.erase(i);
+        if(i != _promises->cend())
+            _promises->erase(i);
     }
 
 #ifdef _WIN32

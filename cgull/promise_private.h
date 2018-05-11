@@ -6,8 +6,6 @@
 #include <cassert>
 #include <tuple>
 
-#define CGULL_DEBUG_GUTS //!< \todo remove
-
 #if defined(CGULL_DEBUG_GUTS)
 #   include <iostream>
 #endif
@@ -129,3 +127,6 @@ namespace CGull::guts
 
 //CGULL_EXTERN template class CGULL_API CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate>;
 //CGULL_EXTERN template class CGULL_API std::vector< CGull::guts::SharedDataPtr<CGull::guts::PromisePrivate> >;
+
+// included in 'handler.h'
+//#include "promise_private.hpp"
