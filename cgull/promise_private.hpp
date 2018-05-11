@@ -10,7 +10,9 @@ namespace CGull::guts
     inline
     PromisePrivate::PromisePrivate()
     {
-        std::cout
+        _DebugPromiseList::instance().add(this);
+
+        Log()
             << "PromisePrivate::_ctor() -- "
             << std::dec << (++_debugPrivateCounter())
             << " -- " << std::hex << this << std::dec
@@ -23,11 +25,13 @@ namespace CGull::guts
     {
         handler->deleteHandlerData(handlerData);
 
-        std::cout
+        Log()
             << "PromisePrivate::_dtor() -- "
             << std::dec << (--_debugPrivateCounter())
             << " -- " << std::hex << this << std::dec
             << "\n";
+
+        _DebugPromiseList::instance().remove(this);
     }
 
 #endif
@@ -177,7 +181,7 @@ namespace CGull::guts
         assert(refs);
 
         if((refs == 2+outers.size() && inners.empty()) //< check for root promise
-            || refs == 1)                              //< last ref
+            || refs <= 1)                              //< last ref
         {
             if(!isFulFilled())
                 fulfillLocal(std::move(std::any{}), CGull::Aborted);
