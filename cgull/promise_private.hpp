@@ -160,8 +160,12 @@ namespace CGull::guts
     inline
     void PromisePrivate::unbindInners()
     {
-        if(!inners.empty())
+        if (!inners.empty())
+#if PROMISE_USE_STD_SHARED
+            std::swap(inners, PromisePrivateWeakList{});
+#else
             std::swap(inners, PromisePrivateList{});
+#endif
     }
 
 
@@ -176,18 +180,34 @@ namespace CGull::guts
     inline
     bool PromisePrivate::deleteThisLocal()
     {
-        const auto refs = _ref.load();
+#if PROMISE_USE_STD_SHARED
+        const auto refs = shared_from_this().use_count();
 
         assert(refs);
 
-        if((refs == 2+outers.size() && inners.empty()) //< check for root promise
+        if ((refs == 2 + outers.size() && inners.empty()) //< check for root promise
             || refs <= 1)                              //< last ref
         {
-            if(!isFulFilled())
+            if (!isFulFilled())
                 fulfillLocal(std::move(std::any{}), CGull::Aborted);
 
             return true;
         };
+#else
+        const auto refs = _ref.load();
+
+        assert(refs);
+
+        if ((refs == 2 + outers.size() && inners.empty()) //< check for root promise
+            || refs <= 1)                              //< last ref
+        {
+            if (!isFulFilled())
+                fulfillLocal(std::move(std::any{}), CGull::Aborted);
+
+            return true;
+        };
+#endif
+        
 
         return false;
     }
@@ -209,8 +229,11 @@ namespace CGull::guts
 
                 for(int i = 0; i < innersCount; ++i)
                 {
+#if PROMISE_USE_STD_SHARED
+                    const auto inn = inners.at(i).lock();
+#else
                     const auto inn = inners.at(i);
-
+#endif
                     if(!inn->isFulFilled())    // don't need to check finish at this moment
                         somethingNotFinished = true;
                     else if(inn->isResolved()) // resolved inner found
@@ -226,8 +249,17 @@ namespace CGull::guts
 
                 results.reserve(innersCount);
 
-                for(int i = 0; i < innersCount; ++i)
-                    results.emplace_back(inners.at(i)->result);
+                for (int i = 0; i < innersCount; ++i)
+                {
+#if PROMISE_USE_STD_SHARED
+                    const auto inn = inners.at(i).lock();
+#else
+                    const auto inn = inners.at(i);
+#endif
+
+                    results.emplace_back(inn->result);
+                }
+                    
 
                 return { CGull::Rejected, std::any{std::move(results)} };
             }
@@ -237,7 +269,11 @@ namespace CGull::guts
 
                 for(int i = 0; i < innersCount; ++i)
                 {
+#if PROMISE_USE_STD_SHARED
+                    const auto inn = inners.at(i).lock();
+#else
                     const auto inn = inners.at(i);
+#endif
 
                     if(inn->isRejected())   // one of inners rejected
                         return { CGull::Rejected, inn->result };
@@ -254,8 +290,13 @@ namespace CGull::guts
 
                 results.reserve(innersCount);
 
-                for(int i = 0; i < innersCount; ++i)
+#if PROMISE_USE_STD_SHARED
+                for (int i = 0; i < innersCount; ++i)
+                    results.emplace_back(inners.at(i).lock()->result);
+#else
+                for (int i = 0; i < innersCount; ++i)
                     results.emplace_back(inners.at(i)->result);
+#endif
 
                 return { CGull::Resolved, std::any{std::move(results)} };
             }
@@ -263,7 +304,11 @@ namespace CGull::guts
             {
                 for(int i = 0; i < innersCount; ++i)
                 {
+#if PROMISE_USE_STD_SHARED
+                    const auto inn = inners.at(i).lock();
+#else
                     const auto inn = inners.at(i);
+#endif
 
                     if(inn->isFulFilled())
                         return { inn->fulfillmentState, inn->result };
@@ -273,7 +318,11 @@ namespace CGull::guts
             }
         case CGull::LastBound:
             {
-                const auto inn = inners.back();
+#if PROMISE_USE_STD_SHARED
+            const auto inn = inners.back().lock();
+#else
+            const auto inn = inners.back();
+#endif
 
                 if(!inn->isFulFilled())
                     return { CGull::NotFulfilled, std::any{} };

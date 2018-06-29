@@ -21,7 +21,12 @@ Promise Promise::_then(_Resolve&& onResolve, _Context context, bool isResolve)
 {
     (void)context; //!< \todo implement contexts
 
+#if PROMISE_USE_STD_SHARED
+    auto D = _d.get();
+#else
     auto D = _d.data();
+#endif
+    
 
     // chained outer
     Promise next;
@@ -100,7 +105,11 @@ void Promise::_handleFulfill(const _T& value, bool isResolve)
 
 inline
 Promise::Promise()
+#if PROMISE_USE_STD_SHARED
+    : _d( std::make_shared<CGull::guts::PromisePrivate>())
+#else
     : _d(new CGull::guts::PromisePrivate{})
+#endif
 {
     _d->handler = CGull::Handler::forThisThread(); //!< \todo implement contexts
     _d->handler->init(_d);
@@ -110,8 +119,11 @@ Promise::Promise()
 inline
 Promise::~Promise()
 {
+#if PROMISE_USE_STD_SHARED
+    auto D = _d.get();
+#else
     auto D = _d.data();
-
+#endif
     if(D)
         D->handler->deleteThis(_d);
 }

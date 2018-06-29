@@ -11,3 +11,4 @@ Untitled-1.txt
 x64
 *.orig
 *.old
+/CMakeSettings.json

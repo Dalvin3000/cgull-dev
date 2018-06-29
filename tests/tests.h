@@ -1123,8 +1123,14 @@ TEST(PromiseBase, rescue_compilation)
         {
             ChainTestHelper chain = {1,3};
             Promise{}.resolve(1)
-                .then([&](int v){ CHAINV; throw 3; return 2;})
-                .rescue([&](int v){ CHAINV; });
+                .then([&](int v)
+                    { 
+                        CHAINV; throw 3; return 2;
+                    })
+                .rescue([&](int v)
+                    { 
+                        CHAINV; 
+                    });
             EXPECT_EQ(0, chain.isFailed());
         }
         catch(...) { EXPECT_FALSE(1); };
@@ -1191,3 +1197,27 @@ TEST(PromiseBase, rescue_compilation)
 
     CHECK_CGULL_PROMISE_GUTS;
 };
+
+TEST(PromiseBase, benchmark)
+{
+    unsigned count{ 100000 };
+
+    CGull::SyncHandler::useForThisThread();
+
+    for (unsigned i=0; i<count; ++i) 
+    {
+        { auto next = Promise{}.resolve(1).then([]() {}); };
+        { auto next = Promise{}.resolve(1).then([](const std::any&) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::any) {}); };
+        { auto next = Promise{}.resolve(1).then([](std::any&&) {}); };
+        { auto next = Promise{}.resolve(1).then([](const int&) {}); };
+        { auto next = Promise{}.resolve(1).then([](int) {}); };
+        { auto next = Promise{}.resolve(1).then([](int&&) {}); };
+        { auto next = Promise{}.resolve(1).then([]() { return 1; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return std::any{}; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return Promise{}; }); };
+        { auto next = Promise{}.then([]() { return Promise{}; }); };
+        { auto next = Promise{}.resolve(1).then([]() { return Promise{}.resolve(2); }); };
+        { auto next = Promise{}.then([]() { return Promise{}.resolve(2); }); };
+    }
+}

@@ -12,6 +12,7 @@
 
 #include "common.h"
 
+#define PROMISE_USE_STD_SHARED 1
 
 namespace CGull
 {
@@ -30,7 +31,12 @@ namespace CGull::guts
     CGULL_DEFINE_ALLOCATOR(PromisePrivate);
 
 
-    class /*CGULL_API*/ PromisePrivate : public SharedData
+    class /*CGULL_API*/ PromisePrivate 
+#if PROMISE_USE_STD_SHARED
+        : public std::enable_shared_from_this<PromisePrivate>
+#else
+        : public SharedData 
+#endif
     {
         CGULL_USE_ALLOCATOR(PromisePrivate);
 
@@ -41,8 +47,16 @@ namespace CGull::guts
         PromisePrivate& operator=(PromisePrivate&&) = delete;
 
     public:
+#if PROMISE_USE_STD_SHARED
+        using Type = std::shared_ptr<PromisePrivate>; // SharedDataPtr<PromisePrivate>;
+        using WeakType = std::weak_ptr<PromisePrivate>;
+        using PromisePrivateList = std::vector<Type>;
+        using PromisePrivateWeakList = std::vector<WeakType>;
+#else
         using Type = SharedDataPtr<PromisePrivate>;
         using PromisePrivateList = std::vector<Type>;
+#endif
+        
 
 
         //! Context-local write and context-local read.
@@ -60,9 +74,13 @@ namespace CGull::guts
 
         //! Context-local.
         PromisePrivateList      outers;
-        //! Context-local.
-        PromisePrivateList      inners;
 
+#if PROMISE_USE_STD_SHARED
+        //! Context-local.
+        PromisePrivateWeakList      inners;
+#else
+        PromisePrivateList      inners;
+#endif
         //! Context-local.
         std::any                innersResultCache;
         //! Finisher callback for chain fulfillment. Contex-local.
