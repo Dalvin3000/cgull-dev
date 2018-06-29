@@ -11,12 +11,19 @@ namespace CGull::guts
     PromisePrivate::PromisePrivate()
     {
         _DebugPromiseList::instance().add(this);
+        this->_debugIdx = _debugCounter.fetch_add(1);
 
+        Log() 
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::_ctor()"
+            << "\n";
+#if 0
         Log()
             << "PromisePrivate::_ctor() -- "
             << std::dec << (++_debugPrivateCounter())
             << " -- " << std::hex << this << std::dec
             << "\n";
+#endif
     }
 
 
@@ -26,11 +33,16 @@ namespace CGull::guts
         handler->deleteHandlerData(handlerData);
 
         Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::_dtor()"
+            << "\n";
+#if 0
+        Log()
             << "PromisePrivate::_dtor() -- "
             << std::dec << (--_debugPrivateCounter())
             << " -- " << std::hex << this << std::dec
             << "\n";
-
+#endif
         _DebugPromiseList::instance().remove(this);
     }
 
@@ -40,6 +52,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::setFinisherLocal(CallbackFunctor&& callback, bool isResolve)
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::setFinisherLocal"
+            << "\n";
+#endif
+
         const auto st = finishState;
 
         assert(!st && "Promise already finished.");
@@ -61,6 +80,15 @@ namespace CGull::guts
     inline
     void PromisePrivate::bindInnerLocal(Type inner, CGull::WaitType waitType)
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::bindInnerLocal"
+            << " " << std::hex << inner.get() << std::dec
+            << " " << WaitTypeStr(waitType)
+            << "\n";
+#endif
+
         inners.push_back(inner);
         wait = waitType;
     }
@@ -69,6 +97,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::bindOuterLocal(Type outer)
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::bindOuterLocal"
+            << " " << _debugIdxStr(outer.get())
+            << "\n";
+#endif
 
         if(isFulFilled())
             outer->handler->tryFinish(outer);
@@ -80,6 +115,14 @@ namespace CGull::guts
     inline
     void PromisePrivate::fulfillLocal(std::any&& value, CGull::FulfillmentState state)
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::fulfillLocal"
+            << " " << FulfillmentStateStr(state)
+            << "\n";
+#endif
+
         auto tmp = CGull::NotFulfilled;
 
         if(fulfillmentState.compare_exchange_strong(tmp, CGull::FulfillingNow, std::memory_order_acquire))
@@ -98,6 +141,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::tryFinishLocal()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::tryFinishLocal"
+            << "\n";
+#endif
+
         const auto fnState = finishState;
 
         // check if promise already finished
@@ -134,6 +184,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::completeFinish()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::completeFinish"
+            << "\n";
+#endif
+
         finishState = finisherIsResolver ? CGull::Thenned : CGull::Rescued;
 
         unbindInners();
@@ -143,6 +200,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::abortLocal()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::abortLocal"
+            << "\n";
+
+#endif
         if(finisher)
         {
             finisher(CGull::Abort, std::move(std::any{}));
@@ -160,6 +224,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::unbindInners()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::unbindInners"
+            << "\n";
+#endif
+
         if (!inners.empty())
 #if PROMISE_USE_STD_SHARED
             std::swap(inners, PromisePrivateWeakList{});
@@ -172,6 +243,12 @@ namespace CGull::guts
     inline
     void PromisePrivate::unbindOuters()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::unbindOuters"
+            << "\n";
+#endif
         if(!outers.empty())
             std::swap(outers, PromisePrivateList{});
     }
@@ -180,6 +257,13 @@ namespace CGull::guts
     inline
     bool PromisePrivate::deleteThisLocal()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::deleteThisLocal"
+            << "\n";
+#endif
+
 #if PROMISE_USE_STD_SHARED
         const auto refs = shared_from_this().use_count();
 
@@ -216,6 +300,13 @@ namespace CGull::guts
     inline
     std::tuple<CGull::FulfillmentState, std::any> PromisePrivate::_checkInnersFulfillment()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::_checkInnersFulfillment"
+            << "\n";
+#endif
+
         const auto wt = wait.load();
         const auto innersCount = inners.size();
 
@@ -227,12 +318,12 @@ namespace CGull::guts
             {
                 bool somethingNotFinished = false;
 
-                for(int i = 0; i < innersCount; ++i)
+                for (const auto & i : inners) 
                 {
 #if PROMISE_USE_STD_SHARED
-                    const auto inn = inners.at(i).lock();
+                    const auto inn = i.lock();
 #else
-                    const auto inn = inners.at(i);
+                    const auto inn = i;
 #endif
                     if(!inn->isFulFilled())    // don't need to check finish at this moment
                         somethingNotFinished = true;
@@ -249,14 +340,13 @@ namespace CGull::guts
 
                 results.reserve(innersCount);
 
-                for (int i = 0; i < innersCount; ++i)
+                for (const auto & i : inners)
                 {
 #if PROMISE_USE_STD_SHARED
-                    const auto inn = inners.at(i).lock();
+                    const auto inn = i.lock();
 #else
-                    const auto inn = inners.at(i);
+                    const auto inn = i;
 #endif
-
                     results.emplace_back(inn->result);
                 }
                     
@@ -267,14 +357,13 @@ namespace CGull::guts
             {
                 bool somethingNotFinished = false;
 
-                for(int i = 0; i < innersCount; ++i)
+                for (const auto & i : inners)
                 {
 #if PROMISE_USE_STD_SHARED
-                    const auto inn = inners.at(i).lock();
+                    const auto inn = i.lock();
 #else
-                    const auto inn = inners.at(i);
+                    const auto inn = i;
 #endif
-
                     if(inn->isRejected())   // one of inners rejected
                         return { CGull::Rejected, inn->result };
                     else if(!inn->isFulFilled())
@@ -290,26 +379,25 @@ namespace CGull::guts
 
                 results.reserve(innersCount);
 
+                for (const auto & i : inners)
+                {
 #if PROMISE_USE_STD_SHARED
-                for (int i = 0; i < innersCount; ++i)
-                    results.emplace_back(inners.at(i).lock()->result);
+                    results.emplace_back(i.lock()->result);
 #else
-                for (int i = 0; i < innersCount; ++i)
-                    results.emplace_back(inners.at(i)->result);
+                    results.emplace_back(i->result);
 #endif
-
+                }
                 return { CGull::Resolved, std::any{std::move(results)} };
             }
         case CGull::First:
             {
-                for(int i = 0; i < innersCount; ++i)
+                for(const auto & i : inners)
                 {
 #if PROMISE_USE_STD_SHARED
-                    const auto inn = inners.at(i).lock();
+                    const auto inn = i.lock();
 #else
-                    const auto inn = inners.at(i);
+                    const auto inn = i;
 #endif
-
                     if(inn->isFulFilled())
                         return { inn->fulfillmentState, inn->result };
                 };
@@ -338,6 +426,13 @@ namespace CGull::guts
     inline
     void PromisePrivate::_propagate()
     {
+#if CGULL_DEBUG_GUTS
+        Log()
+            << "@" << _debugIdxStr(this)
+            << " " << "PromisePrivate::_propagate"
+            << "\n";
+#endif
+
         for(const auto outer : outers)
             outer->handler->tryFinish(outer);
 

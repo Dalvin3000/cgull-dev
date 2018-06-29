@@ -138,8 +138,28 @@ namespace CGull::guts
         std::tuple<CGull::FulfillmentState, std::any>
              _checkInnersFulfillment();
         void _propagate();
-    };
 
+#if defined(CGULL_DEBUG_GUTS)
+        int _debugIdx;
+
+        static std::string _debugIdxStr(PromisePrivate const * p)
+        {
+            if (!p)
+            {
+                return "";
+            }
+            if (!p->inners.empty())
+            {
+                return  _debugIdxStr(p->inners.front().lock().get()) + "*" + std::to_string(p->_debugIdx);
+            }
+
+            return std::to_string(p->_debugIdx);
+        }
+#endif
+    };
+#if defined(CGULL_DEBUG_GUTS)
+    static std::atomic<int> _debugCounter{0};
+#endif
 
 };
 

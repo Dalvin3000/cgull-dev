@@ -3,6 +3,9 @@
 
 #pragma once
 
+
+#define CGULL_DEBUG_GUTS 1
+
 #pragma warning(disable: 4996)
 
 #if !defined(CGULL_CMAKE_BUILD)
@@ -130,6 +133,25 @@ namespace CGull
 
     using AtomicFinishState = std::atomic<FinishState>;
 
+#if CGULL_DEBUG_GUTS
+    constexpr const char * FinishStateStr(FinishState v)
+    {
+        switch (v)
+        {
+            case CGull::NotFinished: return "NotFinished";
+                break;
+            case CGull::Awaiting: return "Awaiting";
+                break;
+            case CGull::Thenned: return "Thenned";
+                break;
+            case CGull::Rescued: return "Rescued";
+                break;
+            case CGull::Skipped: return "Skipped";
+                break;
+        }
+    }
+#endif
+
     //! Represents promise fulfillment finishState.
     enum FulfillmentState : uint8_t
     {
@@ -142,6 +164,25 @@ namespace CGull
 
     using AtomicFulfillmentState = std::atomic<FulfillmentState>;
 
+#if CGULL_DEBUG_GUTS
+    constexpr const char * FulfillmentStateStr(FulfillmentState v)
+    {
+        switch (v)
+        {
+            case CGull::NotFulfilled: return "NotFulfilled";
+                break;
+            case CGull::FulfillingNow: return "FulfillingNow";
+                break;
+            case CGull::Resolved: return "Resolved";
+                break;
+            case CGull::Rejected: return "Rejected";
+                break;
+            case CGull::Aborted: return "Aborted";
+                break;
+        }
+    }
+#endif
+
     //! Represents promise wait type for complex nested promises.
     enum WaitType : uint8_t
     {
@@ -152,6 +193,23 @@ namespace CGull
     };
 
     using AtomicWaitType = std::atomic<WaitType>;
+
+#if CGULL_DEBUG_GUTS
+    constexpr const char * WaitTypeStr(WaitType v)
+    {
+        switch (v)
+        {
+            case CGull::Any: return "Any";
+                break;
+            case CGull::All: return "All";
+                break;
+            case CGull::First: return "First";
+                break;
+            case CGull::LastBound: return "LastBound";
+                break;
+        }
+    }
+#endif
 
     //! Lambda return sugar.
     static constexpr bool Abort = true;

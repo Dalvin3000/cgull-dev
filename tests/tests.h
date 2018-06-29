@@ -1198,6 +1198,8 @@ TEST(PromiseBase, rescue_compilation)
     CHECK_CGULL_PROMISE_GUTS;
 };
 
+#if 0
+
 TEST(PromiseBase, benchmark)
 {
     unsigned count{ 100000 };
@@ -1221,3 +1223,4 @@ TEST(PromiseBase, benchmark)
         { auto next = Promise{}.then([]() { return Promise{}.resolve(2); }); };
     }
 }
+#endif

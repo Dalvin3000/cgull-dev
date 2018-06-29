@@ -6,7 +6,6 @@
 #include "function_traits.h"
 #include "promise_private.h"
 #include "sync_handler.h"
-//#include "std_thread_handler.h"
 
 #if defined(CGULL_USE_NAMESPACE)
 namespace CGull
