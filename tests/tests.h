@@ -1191,3 +1191,79 @@ TEST(PromiseBase, rescue_compilation)
 
     CHECK_CGULL_PROMISE_GUTS;
 };
+
+
+
+TEST(PromiseStdThread, then_simple)
+{
+    {
+        //std::atomic_int thenCalled = 0;
+        //{
+        //    CGull::StdThreadHandler::useForThisThread();
+
+        //    Promise a;
+        //    Promise b = a
+        //        .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+        //        .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+        //        .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
+        //        ;
+
+        //    a.resolve(5);
+        //}
+        //WAIT_FOR(200, [&](){ return 0x07 == thenCalled; });
+        //EXPECT_EQ(0x07, thenCalled);
+        //CHECK_CGULL_PROMISE_GUTS;
+    }
+    {
+        std::atomic_int thenCalled = 0;
+        {
+            CGull::StdThreadHandler::useForThisThread();
+
+            Promise a;
+            Promise b = a
+                .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+                ;
+            a.resolve(5);
+
+            b = b.then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+                 .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
+                ;
+        }
+        WAIT_FOR(200, [&]() { return 0x07 == thenCalled; });
+        EXPECT_EQ(0x07, thenCalled);
+        CHECK_CGULL_PROMISE_GUTS;
+    }
+    {
+        std::atomic_int thenCalled = 0;
+        {
+            CGull::StdThreadHandler::useForThisThread();
+
+            Promise a;
+            Promise b = a.resolve(5)
+                .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+                .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+                .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
+                ;
+        }
+        WAIT_FOR(200, [&]() { return 0x07 == thenCalled; });
+        EXPECT_EQ(0x07, thenCalled);
+        CHECK_CGULL_PROMISE_GUTS;
+    }
+    {
+        std::atomic_int thenCalled = 0;
+        {
+            CGull::StdThreadHandler::useForThisThread();
+
+            Promise b = Promise{}.resolve(5)
+                .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
+                .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
+                .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
+                ;
+        }
+        WAIT_FOR(200, [&]() { return 0x07 == thenCalled; });
+        EXPECT_EQ(0x07, thenCalled);
+        CHECK_CGULL_PROMISE_GUTS;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+};
