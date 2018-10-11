@@ -7,8 +7,9 @@
 
 #include <gtest/gtest.h>
 
-#include <QCoreApplication>
-
+#if defined(CGULL_QT)
+#   include <QCoreApplication>
+#endif
 
 
 int main(int argc, char** argv)
