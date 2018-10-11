@@ -176,7 +176,7 @@ namespace CGull::guts
     inline
     bool PromisePrivate::deleteThisLocal()
     {
-        const auto refs = _ref.load();
+        const auto refs = refsCount();
 
         assert(refs);
 

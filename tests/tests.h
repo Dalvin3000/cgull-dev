@@ -131,95 +131,221 @@ public:
 };
 
 
-TEST(guts__ref_counter, base)
+class ThisIsPimpl
 {
-    using namespace CGull::guts;
+public:
+    struct ThisIsPimplPrivate
+        : public CGull::guts::RefCounter<ThisIsPimplPrivate>
+        , public CGull::guts::SupportsWeakPtr<ThisIsPimplPrivate>
+    {
+        int64_t someData = 0;
+        int     anotherData = 0;
+        char*   andOneMoreData = nullptr;
+    };
 
-    RefCounter v;
+    using WeakType = CGull::guts::WeakPtr<ThisIsPimplPrivate>;
 
-    EXPECT_EQ(0, v);
+public:
+    ThisIsPimpl()
+        : _d(new ThisIsPimplPrivate)
+    { }
 
-    EXPECT_EQ(true, v.ref());
-    EXPECT_EQ(1, v);
+    WeakType createWeakPtr() const
+    {
+        return _d->createWeakPtr();
+    };
 
-    EXPECT_EQ(true, v.ref());
-    EXPECT_EQ(2, v);
 
-    EXPECT_EQ(true, v.deref());
-    EXPECT_EQ(1, v);
+public:
+    CGull::guts::SharedPtr<ThisIsPimplPrivate> _d;
 
-    EXPECT_EQ(true, v.ref());
-    EXPECT_EQ(2, v);
+};
 
-    EXPECT_EQ(true, v.deref());
-    EXPECT_EQ(1, v);
 
-    EXPECT_EQ(false, v.deref());
-    EXPECT_EQ(0, v);
+TEST(guts__Pimpl, base)
+{
+    ThisIsPimpl::WeakType wo;
+
+    EXPECT_EQ(false, wo.data());
+
+    {
+        ThisIsPimpl o;
+
+        EXPECT_EQ(0, o._d->someData);
+
+        {
+            auto o1 = o;
+
+            EXPECT_EQ(false, wo.data());
+
+            {
+                wo = o1.createWeakPtr();
+
+                EXPECT_EQ(true, wo.data() != nullptr);
+                EXPECT_EQ(1, ++wo->someData);
+            }
+
+            EXPECT_EQ(true, wo.data() != nullptr);
+            EXPECT_EQ(2, ++wo->someData);
+        }
+
+        EXPECT_EQ(2, o._d->someData);
+    }
+
+    EXPECT_EQ(false, wo.data());
 }
 
 
-TEST(guts__shared_data, base)
+TEST(guts__RefCounter, base)
 {
     using namespace CGull::guts;
 
-    SharedData v;
+    constexpr const int i = 0;
 
-    EXPECT_EQ(0, v._ref);
+    RefCounter<int> v;
 
-    v._ref.ref();
+    EXPECT_EQ(i+0, v);
 
-    EXPECT_EQ(1, v._ref);
+    v.ref();
+    EXPECT_EQ(i+1, v);
 
-    SharedData v2{v};
+    v.ref();
+    EXPECT_EQ(i+2, v);
 
-    EXPECT_EQ(0, v2._ref);
+    EXPECT_EQ(true, v.deref());
+    EXPECT_EQ(i+1, v);
+
+    v.ref();
+    EXPECT_EQ(i+2, v);
+
+    EXPECT_EQ(true, v.deref());
+    EXPECT_EQ(i+1, v);
+
+    EXPECT_EQ(false, v.deref());
+    EXPECT_EQ(i+0, v);
+
+    EXPECT_EQ(false, v.refnz());
+    EXPECT_EQ(i+0, v);
+
+    v.ref();
+    EXPECT_EQ(true, v.refnz());
+    EXPECT_EQ(i+2, v);
+}
+
+
+TEST(guts__SharedData, base)
+{
+    using namespace CGull::guts;
+
+    class SD : public RefCounter<SD> { public: SD() = default; SD(const SD&) = default;
+
+        void ref()          { __super::ref(); }
+        bool deref()        { return __super::deref(); }
+        bool refnz()        { return __super::refnz(); }
+        int  get() const    { return __super::refsCount(); }
+
+//         void _incRef() { __super::_incRef(); }
+//         [[nodiscard]]
+//         bool _incRefNotZero() { return __super::_incRefNotZero(); }
+//         [[nodiscard]]
+//         bool _decRef() { return __super::_decRef(); }
+//
+//         int  _refs() const { return __super::_refs(); }
+    };
+
+    constexpr const int i = 0;
+
+    SD v;
+
+    EXPECT_EQ(i+0, v.get());
+
+    v.ref();
+    EXPECT_EQ(i+1, v.get());
+
+    v.refnz();
+    EXPECT_EQ(i+2, v.get());
+
+    EXPECT_EQ(true, v.deref());
+    EXPECT_EQ(i+1, v.get());
+
+    EXPECT_EQ(false, v.deref());
+    EXPECT_EQ(i+0, v.get());
 }
 
 
 TEST(guts, static_asserts)
 {
-    EXPECT_EQ(sizeof(int), sizeof(CGull::guts::SharedData));
-    EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::SharedDataPtr<CGull::guts::SharedData>));
-
+    EXPECT_EQ(sizeof(int), sizeof(CGull::guts::RefCounter<int>));
+    EXPECT_EQ(sizeof(intptr_t), sizeof(CGull::guts::SharedPtr<CGull::guts::RefCounter<int> >));
+    EXPECT_EQ(sizeof(intptr_t), sizeof(ThisIsPimpl));
+    EXPECT_EQ(sizeof(intptr_t)*2, sizeof(CGull::guts::WeakPtr<int>));
     EXPECT_EQ(sizeof(int8_t), sizeof(std::atomic<CGull::FinishState>));
 }
 
 
-TEST(guts__shared_data_ptr, ref_count)
+TEST(guts__SharedDataPtr, ref_count)
 {
     using namespace CGull::guts;
 
-    struct TestStruct : public SharedData
+    struct TestStruct : public RefCounter<TestStruct>
     {
         static int& d() { static int v = 0; return v; }
         TestStruct()    { ++d(); }
         ~TestStruct()   { --d(); }
+
+        void ref()          { __super::ref(); }
+        bool deref()        { return __super::deref(); }
+        bool refnz()        { return __super::refnz(); }
+        int  get() const    { return __super::refsCount(); }
+
+//         void _incRef() { __super::_incRef(); }
+//         [[nodiscard]]
+//         bool _incRefNotZero() { return __super::_incRefNotZero(); }
+//         [[nodiscard]]
+//         bool _decRef() { return __super::_decRef(); }
+//
+//         int  _refs() const { return __super::_refs(); }
     };
 
     EXPECT_EQ(0, TestStruct::d());
 
     {
-        SharedDataPtr<TestStruct> val(new TestStruct);
+        SharedPtr<TestStruct> val(new TestStruct);
 
         EXPECT_EQ(1, TestStruct::d());
-        EXPECT_EQ(1, val.constData()->_ref.load());
+        EXPECT_EQ(1, val.constData()->get());
 
         {
             const auto val2 = val;
 
             EXPECT_EQ(1, TestStruct::d());
-            EXPECT_EQ(2, val .constData()->_ref.load());
-            EXPECT_EQ(2, val2.constData()->_ref.load());
+            EXPECT_EQ(2, val .constData()->get());
+            EXPECT_EQ(2, val2.constData()->get());
         }
 
         EXPECT_EQ(1, TestStruct::d());
-        EXPECT_EQ(1, val.constData()->_ref.load());
+        EXPECT_EQ(1, val.constData()->get());
     }
 
     EXPECT_EQ(0, TestStruct::d());
 }
 
+
+TEST(guts__WeakPtr, scope)
+{
+    using namespace CGull::guts;
+
+    WeakPtr<int> ptr;
+
+    EXPECT_EQ(nullptr, ptr.data());
+    {
+        int data;
+        WeakPtrFactory<int> factory(&data);
+        ptr = factory.createWeakPtr();
+        EXPECT_EQ(true, ptr.data() != nullptr);
+    }
+    EXPECT_EQ(nullptr, ptr.data());
+}
 
 template< typename _Cb >
 auto guts__callback_traits__return_tags__fn(_Cb /*cb*/, CGull::guts::return_auto_tag) { return int{}; }

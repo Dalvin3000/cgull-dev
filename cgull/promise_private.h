@@ -11,6 +11,7 @@
 #endif
 
 #include "common.h"
+#include "memory.h"
 
 
 namespace CGull
@@ -30,7 +31,7 @@ namespace CGull::guts
     CGULL_DEFINE_ALLOCATOR(PromisePrivate);
 
 
-    class /*CGULL_API*/ PromisePrivate : public SharedData
+    class /*CGULL_API*/ PromisePrivate : public RefCounter<PromisePrivate>
     {
         CGULL_USE_ALLOCATOR(PromisePrivate);
 
@@ -41,7 +42,7 @@ namespace CGull::guts
         PromisePrivate& operator=(PromisePrivate&&) = delete;
 
     public:
-        using Type = SharedDataPtr<PromisePrivate>;
+        using Type = SharedPtr<PromisePrivate>;
         using PromisePrivateList = std::vector<Type>;
 
 
