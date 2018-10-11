@@ -186,6 +186,7 @@ namespace CGull::guts
 
     CGULL_API std::mutex& _debugCoutMutex();
 
+    //! Static ref counter for created promises.
     struct CGULL_API _DebugPromiseList
     {
         std::deque<PromisePrivate*>* _promises;
@@ -203,6 +204,7 @@ namespace CGull::guts
 #endif
 
 
+    //! Support class for logging capabilities.
     class Log
     {
         Log(const Log&) = delete;

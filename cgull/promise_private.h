@@ -109,11 +109,11 @@ namespace CGull::guts
         //! Checks promise for utilization state.
         bool deleteThisLocal();
 
-        bool    isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
-        bool    isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
-        bool    isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
-        bool    isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
-        bool    isFinished() const  { return finishState >= CGull::Thenned; };
+        bool isFulFilled() const { return fulfillmentState.load() >= CGull::Resolved; };
+        bool isResolved() const  { return fulfillmentState.load() == CGull::Resolved; };
+        bool isRejected() const  { return fulfillmentState.load() == CGull::Rejected; };
+        bool isAborted() const   { return fulfillmentState.load() == CGull::Aborted; };
+        bool isFinished() const  { return finishState >= CGull::Thenned; };
 
 
     private:
