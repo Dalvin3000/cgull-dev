@@ -26,6 +26,13 @@
 
 
 #if defined(_MSC_VER)
+#   define CGULL_NOVTABLE __declspec(novtable)
+#else
+#   define CGULL_NOVTABLE
+#endif
+
+
+#if defined(_MSC_VER)
 #   define CGULL_VISIBILITY_HELPER_DLL_IMPORT __declspec(dllimport)
 #   define CGULL_VISIBILITY_HELPER_DLL_EXPORT __declspec(dllexport)
 #   define CGULL_VISIBILITY_HELPER_DLL_LOCAL
