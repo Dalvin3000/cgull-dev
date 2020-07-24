@@ -1,7 +1,7 @@
 # CGull /ˈsiː.ɡʌl/
 Promises for C++17.
 
-Inspired by JS.BlueBird.
+Inspired by BlueBird.js.
 
 development repo
 
