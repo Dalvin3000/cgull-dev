@@ -58,3 +58,4 @@ std code style conformance | :x:
 async wrapped | :heavy_check_mark: (not all tests written)
 full qt handler | :x:
 full uv handler | :x:
+c++ operators sugar | :x:
