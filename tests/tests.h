@@ -445,7 +445,7 @@ template< typename _Cb >
 auto guts__callback_traits__return_tags__fn(_Cb /*cb*/, CGull::guts::return_any_tag) { return std::any{}; }
 
 template< typename _Cb >
-auto guts__callback_traits__return_tags__fn(_Cb /*cb*/, CGull::guts::return_promise_tag) { return Promise{}; }
+auto guts__callback_traits__return_tags__fn(_Cb /*cb*/, CGull::guts::return_promise_tag) { return promise{}; }
 
 template< typename _Cb >
 auto guts__callback_traits__return_tags__fn(_Cb cb)
@@ -469,8 +469,8 @@ TEST(guts__callback_traits, static_asserts__return_tags)
             static_assert(std::is_same< decltype(r), std::any >::value, "`function_traits<>::result_tag` for `any` doesn't work");
         }
         {
-            auto r = guts__callback_traits__return_tags__fn([]() { return Promise{}; });
-            static_assert(std::is_same< decltype(r), Promise >::value, "`function_traits<>::result_tag` for `Promise` doesn't work");
+            auto r = guts__callback_traits__return_tags__fn([]() { return promise{}; });
+            static_assert(std::is_same< decltype(r), promise >::value, "`function_traits<>::result_tag` for `promise` doesn't work");
         }
     }
 
@@ -554,7 +554,7 @@ TEST(guts__callback_traits, static_asserts__args_tags)
 #define TOS_TNoReference(x) _TOS_TNoReference(x)
 
 
-TEST(Promise, test)
+TEST(promise, test)
 {
 #define TEST_OUT(x)  TOS_TNoReference(x) << ": " << (x)
 
@@ -601,11 +601,11 @@ TEST(PromiseBase, construct)
     {
         CGull::SyncHandler::useForThisThread();
 
-        Promise a;
+        promise a;
 
-        Promise b = a;
+        promise b = a;
 
-        Promise c = std::move(b);
+        promise c = std::move(b);
     }
 
     CHECK_CGULL_PROMISE_GUTS;
@@ -617,7 +617,7 @@ TEST(PromiseBase, fulfill_simple)
     CGull::SyncHandler::useForThisThread();
 
     {
-        Promise p; p.resolve(2316);
+        promise p; p.resolve(2316);
 
         EXPECT_EQ(2316 , p.value<int>() );
         EXPECT_EQ(true , p.isResolved() );
@@ -628,7 +628,7 @@ TEST(PromiseBase, fulfill_simple)
     CHECK_CGULL_PROMISE_GUTS;
 
     {
-        Promise p; p.reject(2317);
+        promise p; p.reject(2317);
 
         EXPECT_EQ(2317 , p.value<int>() );
         EXPECT_EQ(false, p.isResolved() );
@@ -641,8 +641,8 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.resolve(2318)
+        promise p1;
+        promise p2 = p1.resolve(2318)
             .then([&](int v) { ++thenCalled; EXPECT_EQ(2318, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(1, thenCalled);
@@ -664,8 +664,8 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.reject(2319)
+        promise p1;
+        promise p2 = p1.reject(2319)
             .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(0, thenCalled);
@@ -686,10 +686,10 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.reject(2319)
+        promise p1;
+        promise p2 = p1.reject(2319)
             .then([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1172; });
-        Promise p3 = p2
+        promise p3 = p2
             .then([&](int v) { ++thenCalled; EXPECT_EQ(1172, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(0, thenCalled);
@@ -718,12 +718,12 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.reject(2319)
+        promise p1;
+        promise p2 = p1.reject(2319)
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1172; });
-        Promise p3 = p2
+        promise p3 = p2
             .rescue([&](int v) { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; return 1132; });
-        Promise p4 = p3
+        promise p4 = p3
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(2, thenCalled);
@@ -757,12 +757,12 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.resolve(2319)
+        promise p1;
+        promise p2 = p1.resolve(2319)
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; throw 1178; return 1172; });
-        Promise p3 = p2
+        promise p3 = p2
             .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); Log() << '=' << v << '\n'; return 1132; });
-        Promise p4 = p3
+        promise p4 = p3
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(3, thenCalled);
@@ -796,14 +796,14 @@ TEST(PromiseBase, fulfill_simple)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise p1;
-        Promise p2 = p1.resolve(2319)
+        promise p1;
+        promise p2 = p1.resolve(2319)
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(2319, v); Log() << '=' << v << '\n'; throw 1178; return 1172; });
-        Promise p3 = p2
+        promise p3 = p2
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(1172, v); Log() << '=' << v << '\n'; });
-        Promise p4 = p3
+        promise p4 = p3
             .rescue([&](int v) { ++thenCalled; EXPECT_EQ(1178, v); Log() << '=' << v << '\n'; return 1132; });
-        Promise p5 = p4
+        promise p5 = p4
             .then([&](int v)   { ++thenCalled; EXPECT_EQ(1132, v); Log() << '=' << v << '\n'; });
 
         EXPECT_EQ(3, thenCalled);
@@ -850,8 +850,8 @@ TEST(PromiseBase, then_simple)
 
         CGull::SyncHandler::useForThisThread();
 
-        Promise a;
-        Promise b = a
+        promise a;
+        promise b = a
             .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
             .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
             .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
@@ -870,8 +870,8 @@ TEST(PromiseBase, then_simple)
 
         CGull::SyncHandler::useForThisThread();
 
-        Promise a;
-        Promise b = a
+        promise a;
+        promise b = a
             .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
             ;
         a.resolve(5);
@@ -891,8 +891,8 @@ TEST(PromiseBase, then_simple)
 
         CGull::SyncHandler::useForThisThread();
 
-        Promise a;
-        Promise b = a.resolve(5)
+        promise a;
+        promise b = a.resolve(5)
             .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
             .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
             .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
@@ -909,7 +909,7 @@ TEST(PromiseBase, then_simple)
 
         CGull::SyncHandler::useForThisThread();
 
-        Promise b = Promise{}.resolve(5)
+        promise b = promise{}.resolve(5)
             .then([&](int v) { thenCalled.fetch_or(0x01); EXPECT_EQ(5, v); Log() << '=' << v << '\n'; return 4; })
             .then([&](int v) { thenCalled.fetch_or(0x02); EXPECT_EQ(4, v); Log() << '=' << v << '\n'; return 7; })
             .then([&](int v) { thenCalled.fetch_or(0x04); EXPECT_EQ(7, v); Log() << '=' << v << '\n'; })
@@ -932,7 +932,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = {5,4,7};
 
-        Promise a, c, b = a
+        promise a, c, b = a
             .then([&](int v) { CHAINV; return c; })
             .then([&](int v) { CHAINV; return 7; })
             .then([&](int v) { CHAINV; });
@@ -949,7 +949,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,7 };
 
-        Promise a, c, b = a
+        promise a, c, b = a
             .then([&](int v) { CHAINV; return c; })
             .then([&](int v) { CHAINV; return 7; })
             .then([&](int v) { CHAINV; });
@@ -966,8 +966,8 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,7 };
 
-        Promise a, b = a
-            .then([&](int v) { CHAINV; return Promise{}.resolve(4); })
+        promise a, b = a
+            .then([&](int v) { CHAINV; return promise{}.resolve(4); })
             .then([&](int v) { CHAINV; return 7; })
             .then([&](int v) { CHAINV; });
 
@@ -982,7 +982,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,7 };
 
-        Promise a, c, b = a
+        promise a, c, b = a
             .then([&](int v) { CHAINV; return c.resolve(4); })
             .then([&](int v) { CHAINV; return 7; })
             .then([&](int v) { CHAINV; });
@@ -1001,7 +1001,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a
+        promise a, c, d, b = a
             .then([&](int v) { CHAINV; return d = c
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1020,7 +1020,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a
+        promise a, c, d, b = a
             .then([&](int v) { CHAINV; return d = c
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1039,7 +1039,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a
+        promise a, c, d, b = a
             .then([&](int v) { CHAINV; return d = c.resolve(4)
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1057,7 +1057,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a.resolve(5)
+        promise a, c, d, b = a.resolve(5)
             .then([&](int v) { CHAINV; return d = c.resolve(4)
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1075,7 +1075,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a.resolve(5)
+        promise a, c, d, b = a.resolve(5)
             .then([&](int v) { CHAINV; return d = c
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1094,7 +1094,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a
+        promise a, c, d, b = a
             .then([&](int v) { CHAINV; return d = c.resolve(4)
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1113,7 +1113,7 @@ TEST(PromiseBase, nested_thens)
         CGull::SyncHandler::useForThisThread();
         ChainTestHelper chain = { 5,4,9,7 };
 
-        Promise a, c, d, b = a
+        promise a, c, d, b = a
             .then([&](int v) { CHAINV; return d = c
                 .then([&](int v) { CHAINV; return 9; });
                 })
@@ -1136,7 +1136,7 @@ TEST(PromiseBase, several_thens)
     CGull::SyncHandler::useForThisThread();
 
     /*
-    a = new Promise((r)=>{r(5);});
+    a = new promise((r)=>{r(5);});
     a.then((r)=>console.log(r)).then(()=>console.log(1));
     a.then((r)=>console.log(r)).then(()=>console.log(2));
     VM362:2 5
@@ -1148,7 +1148,7 @@ TEST(PromiseBase, several_thens)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         a
             .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; })
@@ -1167,7 +1167,7 @@ TEST(PromiseBase, several_thens)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         a.resolve(312);
 
@@ -1186,7 +1186,7 @@ TEST(PromiseBase, several_thens)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         a
             .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; })
@@ -1205,7 +1205,7 @@ TEST(PromiseBase, several_thens)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         auto b = a.then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(1); return 444; });
 
@@ -1224,7 +1224,7 @@ TEST(PromiseBase, several_thens)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         a
             .then([&](int v) { EXPECT_EQ(312, v); thenCalled.fetch_add(3); return 555; })
@@ -1249,7 +1249,7 @@ TEST(PromiseBase, abort)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise a;
+        promise a;
 
         a
             .then([&]() { thenCalled.fetch_add(1); })
@@ -1267,7 +1267,7 @@ TEST(PromiseBase, abort)
     CHECK_CGULL_PROMISE_GUTS;
 
     {
-        Promise{};
+        promise{};
     }
 
     CHECK_CGULL_PROMISE_GUTS;
@@ -1275,7 +1275,7 @@ TEST(PromiseBase, abort)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise{}
+        promise{}
             .then([&]() { thenCalled.store(1); });
 
         EXPECT_EQ(0, thenCalled);
@@ -1286,7 +1286,7 @@ TEST(PromiseBase, abort)
     {
         std::atomic_int thenCalled = 0;
 
-        Promise{}
+        promise{}
             .then([&]() { thenCalled.fetch_add(1); })
             .then([&]() { thenCalled.fetch_add(1); });
 
@@ -1302,26 +1302,26 @@ TEST(PromiseBase, then_compilation)
     {
         CGull::SyncHandler::useForThisThread();
 
-        { auto next = Promise{}.resolve(1).then([]() {}); };
-        { auto next = Promise{}.resolve(1).then([](const std::any&) {}); };
-        { auto next = Promise{}.resolve(1).then([](std::any) {}); };
-        { auto next = Promise{}.resolve(1).then([](std::any&&) {}); };
-        { auto next = Promise{}.resolve(1).then([](const int&) {}); };
-        { auto next = Promise{}.resolve(1).then([](int) {}); };
-        { auto next = Promise{}.resolve(1).then([](int&&) {}); };
-        { auto next = Promise{}.resolve(1).then([](const std::string&) {}); };
-        { auto next = Promise{}.resolve(1).then([](std::string) {}); };
-        { auto next = Promise{}.resolve(1).then([](std::string&&) {}); };
+        { auto next = promise{}.resolve(1).then([]() {}); };
+        { auto next = promise{}.resolve(1).then([](const std::any&) {}); };
+        { auto next = promise{}.resolve(1).then([](std::any) {}); };
+        { auto next = promise{}.resolve(1).then([](std::any&&) {}); };
+        { auto next = promise{}.resolve(1).then([](const int&) {}); };
+        { auto next = promise{}.resolve(1).then([](int) {}); };
+        { auto next = promise{}.resolve(1).then([](int&&) {}); };
+        { auto next = promise{}.resolve(1).then([](const std::string&) {}); };
+        { auto next = promise{}.resolve(1).then([](std::string) {}); };
+        { auto next = promise{}.resolve(1).then([](std::string&&) {}); };
 
-        { auto next = Promise{}.resolve(1).then([a = 10](int prev) { Log() << prev + a << '\n'; }); };
+        { auto next = promise{}.resolve(1).then([a = 10](int prev) { Log() << prev + a << '\n'; }); };
 
-        { auto next = Promise{}.resolve(1).then([]() { return 1; }); };
-        { auto next = Promise{}.resolve(1).then([]() { return std::string{}; }); };
-        { auto next = Promise{}.resolve(1).then([]() { return std::any{}; }); };
-        { auto next = Promise{}.resolve(1).then([]() { return Promise{}; }); };
-        { auto next = Promise{}.then([]() { return Promise{}; }); };
-        { auto next = Promise{}.resolve(1).then([]() { return Promise{}.resolve(2); }); };
-        { auto next = Promise{}.then([]() { return Promise{}.resolve(2); }); };
+        { auto next = promise{}.resolve(1).then([]() { return 1; }); };
+        { auto next = promise{}.resolve(1).then([]() { return std::string{}; }); };
+        { auto next = promise{}.resolve(1).then([]() { return std::any{}; }); };
+        { auto next = promise{}.resolve(1).then([]() { return promise{}; }); };
+        { auto next = promise{}.then([]() { return promise{}; }); };
+        { auto next = promise{}.resolve(1).then([]() { return promise{}.resolve(2); }); };
+        { auto next = promise{}.then([]() { return promise{}.resolve(2); }); };
     }
 
     CHECK_CGULL_PROMISE_GUTS;
@@ -1336,7 +1336,7 @@ TEST(PromiseBase, rescue_compilation)
         try
         {
             ChainTestHelper chain = {1,3};
-            Promise{}.resolve(1)
+            promise{}.resolve(1)
                 .then([&](int v){ CHAINV; throw 3; return 2;})
                 .rescue([&](int v){ CHAINV; });
             EXPECT_EQ(0, chain.isFailed());
@@ -1346,7 +1346,7 @@ TEST(PromiseBase, rescue_compilation)
         try
         {
             ChainTestHelper chain = { 1,3 };
-            Promise{}.resolve(1)
+            promise{}.resolve(1)
                 .then([&](int v) { CHAINV; throw "3"; return 2; })
                 .rescue([&](const char* _v) { int v = std::atoi(_v); CHAINV; });
             EXPECT_EQ(0, chain.isFailed());
@@ -1356,7 +1356,7 @@ TEST(PromiseBase, rescue_compilation)
         try
         {
             ChainTestHelper chain = { 1,3 };
-            Promise{}.resolve(1)
+            promise{}.resolve(1)
                 .then([&](int v) { CHAINV; throw std::any{3}; return std::any{2}; })
                 .rescue([&](std::any _v) { int v = std::any_cast<int>(_v); CHAINV; });
             EXPECT_EQ(0, chain.isFailed());
@@ -1368,7 +1368,7 @@ TEST(PromiseBase, rescue_compilation)
             try
             {
                 ChainTestHelper chain = { 1,3 };
-                Promise{}.resolve(1)
+                promise{}.resolve(1)
                     .then([&](int v) { CHAINV; throw 3.0f; return 2; })
                     .rescue([&](float v) { CHAINV; });
                 EXPECT_EQ(0, chain.isFailed());
@@ -1387,7 +1387,7 @@ TEST(PromiseBase, rescue_compilation)
             try
             {
                 ChainTestHelper chain = { 1,3 };
-                Promise{}.resolve(1)
+                promise{}.resolve(1)
                     .then([&](int v) { CHAINV; throw 3.0f; })
                     .rescue([&](float v) { CHAINV; });
                 EXPECT_EQ(0, chain.isFailed());

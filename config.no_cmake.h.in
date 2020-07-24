@@ -3,7 +3,7 @@
 // Pass this definition to obtain detailed debug info.
 #cmakedefine CGULL_DEBUG_GUTS
 
-// Helps escape 'Promise' symbol as 'CGull::Promise'.
+// Helps escape 'promise' symbol as 'CGull::promise'.
 #cmakedefine CGULL_USE_NAMESPACE
 
 // Defined if boost has been found.

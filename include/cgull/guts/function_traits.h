@@ -33,8 +33,8 @@ template<>
 struct function_return_value_traits< std::any >
 { using tag = return_any_tag; };
 
-// template<> struct function_return_value_traits< Promise >
-//     see it in promise.h after Promise definition...
+// template<> struct function_return_value_traits< promise >
+//     see it in promise.h after promise definition...
 
 
 //! Function arguments tagging

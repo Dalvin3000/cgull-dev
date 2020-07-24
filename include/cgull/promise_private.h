@@ -123,7 +123,7 @@ void promise_private::local_set_finisher(finisher_type&& callback, bool is_resol
 {
     const auto fn_st = finish();
 
-    assert(!fn_st && "Promise already finished.");
+    assert(!fn_st && "promise already finished.");
     assert(!finisher && "Can't set finisher twice.");
 
     if(fn_st)
