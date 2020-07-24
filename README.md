@@ -49,3 +49,12 @@ int main(int argc, char **argv) {
         };
 }
 ```
+
+## Refactoring roadmap
+
+Feature | Status
+--- | ---
+std code style conformance | :x:
+async wrapped | :heavy_check_mark: (not all tests written)
+full qt handler | :x:
+full uv handler | :x:
