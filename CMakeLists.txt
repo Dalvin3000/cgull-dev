@@ -1,308 +1,208 @@
-# Copyright 2018 Vladislav Yaremenko
-# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 . Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+cmake_minimum_required(VERSION 3.18.0)
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.9.0)
+set(CGULL_STATIC_SUFFIX "_s" CACHE STRING "Library suffix for static modules.")
+set(CGULL_SHARED_SUFFIX ""   CACHE STRING "Library suffix for shared modules.")
+set(CGULL_DEBUG_SUFFIX  "d"  CACHE STRING "Library suffix for debug modules.")
 
-PROJECT(cgull)
+option(CGULL_BUILD_TESTS "Tells CMake to generate targets for unit tests." on)
 
-# some base and naming vars
-OPTION(CGULL_DEBUG_GUTS "Set to true to obtain expensive and full debug information.")
-OPTION(CGULL_USE_NAMESPACE "Helps escape 'Promise' symbol as 'CGull::Promise'.")
+project(
+    cgull
+    VERSION 0.1.0
+    DESCRIPTION "Async primitives for C++20 inspired by BlueBird.js"
+    HOMEPAGE_URL "https://github.com/Dalvin3000/cgull"
+    LANGUAGES CXX
+)
 
-SET(ROOT ${PROJECT_NAME})
-
-SET(PROJECT_NAME_STATIC         ${PROJECT_NAME}-s)
-SET(PROJECT_NAME_QT             ${PROJECT_NAME}-qt)
-SET(PROJECT_NAME_QT_STATIC      ${PROJECT_NAME}-qt-s)
-SET(PROJECT_NAME_UV             ${PROJECT_NAME}-uv)
-SET(PROJECT_NAME_UV_STATIC      ${PROJECT_NAME}-uv-s)
-
-SET(_CMAKE_DEBUG_POSTFIX d)
+include(GNUInstallDirs)
+include(GenerateExportHeader)
 
 
-# collecting sources
-FILE(GLOB MAIN      FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} Promise PromiseQt PromiseUV)
-FILE(GLOB TESTS     FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} tests/*.h              tests/*.cpp             )
-FILE(GLOB GUTS_S    FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}                        ${ROOT}/*.cpp           )
-FILE(GLOB GUTS_H    FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${ROOT}/*.h            ${ROOT}/*.hpp           )
-FILE(GLOB GUTS_UV_S FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}                        ${ROOT}-uv/*.cpp        )
-FILE(GLOB GUTS_UV_H FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${ROOT}-uv/*.h                                 )
-FILE(GLOB GUTS_QT_S FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}                        ${ROOT}-qt/*.cpp        )
-FILE(GLOB GUTS_QT_H FOLLOW_SYMLINKS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${ROOT}-qt/*.h                                 )
-
-SET(GUTS    ${GUTS_S}    ${GUTS_H})
-SET(GUTS_UV ${GUTS_UV_S} ${GUTS_UV_H})
-SET(GUTS_QT ${GUTS_QT_S} ${GUTS_QT_H})
-
-# grouping hack for some IDEs
-FILE(GLOB GUTS_S_SG FOLLOW_SYMLINKS ${CMAKE_CURRENT_SOURCE_DIR}/${ROOT}/*.hpp)
-SOURCE_GROUP("Source Files" FILES ${GUTS_S_SG})
+macro(gather_sources SRC HDR PHD PGH)
+    file(GLOB_RECURSE SOURCES             CONFIGURE_DEPENDS  ${SRC})
+    file(GLOB_RECURSE HEADERS             CONFIGURE_DEPENDS  ${HDR})
+    file(GLOB         PUBLIC_HEADERS      CONFIGURE_DEPENDS  ${PHD})
+    file(GLOB         PUBLIC_GUTS_HEADERS CONFIGURE_DEPENDS  ${PGH})
+endmacro()
 
 
-# external deps search
-FIND_PACKAGE(Threads REQUIRED)
-FIND_PACKAGE(Boost)
+function(add_module_variation TARGET_NAME TYPE)
+    add_library(${TARGET_NAME} ${TYPE})
 
+    # suffix build-up
+    if(TYPE STREQUAL "SHARED")
+        set(suffix "${CGULL_SHARED_SUFFIX}")
+    else()
+        set(suffix "${CGULL_STATIC_SUFFIX}")
+    endif()
 
-# common library creation macro
-FUNCTION(MAKE_LIB PNAME)
-    SET(o SHARED)
-    SET(s VERSION)
-    SET(m SOURCES PRIVATE_HEADERS PUBLIC_HEADERS)
-    CMAKE_PARSE_ARGUMENTS(_ "${o}" "${s}" "${m}" ${ARGN})
+    # sources
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Source Files" FILES ${SOURCES})
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src PREFIX "Header Files" FILES ${HEADERS})
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME} PREFIX "Public Header Files" FILES ${PUBLIC_HEADERS})
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME} PREFIX "Public Header Files" FILES ${PUBLIC_GUTS_HEADERS})
 
-    # default - static linking
-    IF(__SHARED)
-        SET(LINKAGE SHARED)
-    ELSE()
-        SET(LINKAGE STATIC)
-    ENDIF()
-
-    # make library
-    ADD_LIBRARY(${PNAME} ${LINKAGE}  ${__SOURCES} ${__PRIVATE_HEADERS} ${__PUBLIC_HEADERS})
-
-    # compiler feature activation
-    TARGET_COMPILE_FEATURES(${PNAME} PUBLIC cxx_std_17)
-    IF(MSVC)
-        TARGET_COMPILE_OPTIONS(${PNAME} PUBLIC "/std:c++latest")
-    ELSE()
-        TARGET_COMPILE_OPTIONS(${PNAME} PUBLIC "-std=c++1z")
-    ENDIF()
-
-    # common link/comp options
-    TARGET_LINK_LIBRARIES(${PNAME} PUBLIC Threads::Threads)
-    TARGET_INCLUDE_DIRECTORIES(${PNAME}
-        INTERFACE  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}> $<INSTALL_INTERFACE:include>
+    target_sources(${TARGET_NAME}
+        PRIVATE
+            ${SOURCES}
+            ${HEADERS}
+            ${PUBLIC_HEADERS}
+            ${PUBLIC_GUTS_HEADERS}
     )
 
-    # library version
-    IF(__VERSION)
-        SET_TARGET_PROPERTIES(${PNAME}
-            PROPERTIES  VERSION ${__VERSION}
-        )
-    ENDIF()
+    # compiler/linker options and flags
+    target_compile_options(${TARGET_NAME}
+        PRIVATE
+            $<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:
+                -Wunused-result
+            >
+        PUBLIC
+            $<$<COMPILE_LANG_AND_ID:CXX,Clang,GNU>:
+                -fcoroutines-ts
+                -fcxx-exceptions
+                -fexceptions
+            >
 
-    # headers
-    SET_TARGET_PROPERTIES(${PNAME}
+            $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/await>
+
+            $<$<PLATFORM_ID:Windows>:/MP>
+    )
+
+    # custom props
+    set_target_properties(${TARGET_NAME}
         PROPERTIES
-            PRIVATE_HEADER  "${__PRIVATE_HEADERS}"
-            PUBLIC_HEADER  "${__PUBLIC_HEADERS}"
+            OUTPUT_NAME    "${PROJECT_NAME}${suffix}"
+            DEBUG_POSTFIX  "${CGULL_DEBUG_SUFFIX}"
+
+            CXX_STANDARD_REQUIRED  on
+            CXX_STANDARD           20
+
+            CXX_VISIBILITY_PRESET      hidden
+            VISIBILITY_INLINES_HIDDEN  on
+
+            VERSION  "${PROJECT_VERSION}"
     )
 
-    # shared/static command defines
-    STRING(REGEX REPLACE "[-:]" "_" PNAME_SAFE "${PNAME}")
+    # links
+    target_link_libraries(${TARGET_NAME}
+        PRIVATE
+            Threads::Threads
+    )
 
-    IF(__SHARED)
-        TARGET_COMPILE_DEFINITIONS(${PNAME} PUBLIC  ${PNAME_SAFE}_SHARED)
-        SET_TARGET_PROPERTIES(${PNAME} PROPERTIES  DEBUG_POSTFIX -${_CMAKE_DEBUG_POSTFIX})
-        SET(${PNAME_SAFE}_SHARED true PARENT_SCOPE) # for config.no_cmake.h
-    ELSE()
-        TARGET_COMPILE_DEFINITIONS(${PNAME} PUBLIC  ${PNAME_SAFE}_STATIC)
-        SET_TARGET_PROPERTIES(${PNAME} PROPERTIES  DEBUG_POSTFIX ${_CMAKE_DEBUG_POSTFIX})
-    ENDIF()
-ENDFUNCTION()
+    # directories
+    target_include_directories(${TARGET_NAME}
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+
+    # defines
+    if(TYPE STREQUAL "SHARED")
+        target_compile_definitions(${TARGET_NAME}
+            PUBLIC
+                CGULL_SHARED
+        )
+    endif()
+
+    # install rules
+    install(
+        FILES ${PUBLIC_HEADERS}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
+    )
+    install(
+        FILES ${PUBLIC_GUTS_HEADERS}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}/guts
+    )
+    install(
+        TARGETS ${TARGET_NAME}
+        EXPORT ${PROJECT_NAME}Config
+    )
+endfunction()
 
 
-# main lib in shared and static form
-MAKE_LIB(${PROJECT_NAME} SHARED
-    VERSION  0.1.0
-    SOURCES  ${GUTS_S}
-    PUBLIC_HEADERS  ${MAIN}
-    PRIVATE_HEADERS  ${GUTS_H}
+# external deps
+find_package(Threads REQUIRED)
+
+# targets
+gather_sources(
+    "src/*.cpp"
+    "src/*.h"
+    "include/cgull/*.h"
+    "include/cgull/guts/*.h"
 )
-MAKE_LIB(${PROJECT_NAME_STATIC} STATIC
-    VERSION  0.1.0
-    SOURCES  ${GUTS_S}
-    PUBLIC_HEADERS  ${MAIN}
-    PRIVATE_HEADERS  ${GUTS_H}
+add_module_variation(static STATIC)
+add_module_variation(shared SHARED)
+
+# shared lib export
+generate_export_header(shared
+    EXPORT_MACRO_NAME         CGULL_API
+    NO_EXPORT_MACRO_NAME      CGULL_LOCAL
+    DEPRECATED_MACRO_NAME     CGULL_DEPRECATED
+    NO_DEPRECATED_MACRO_NAME  CGULL_NO_DEPRECATED
+    EXPORT_FILE_NAME          ${PROJECT_NAME}_export.h
 )
 
-# cmake build marker
-TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_CMAKE_BUILD)
-TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_CMAKE_BUILD)
-
-# turn on debug capabilities
-IF(CGULL_DEBUG_GUTS)
-    IF(TARGET Boost::boost)
-        SET(CGULL_HAS_BOOST true)
-
-        TARGET_LINK_LIBRARIES(${PROJECT_NAME} PUBLIC Boost::boost)
-        TARGET_LINK_LIBRARIES(${PROJECT_NAME_STATIC} PUBLIC Boost::boost)
-        TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_HAS_BOOST=1)
-        TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_HAS_BOOST=1)
-    ENDIF()
-
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_DEBUG_GUTS)
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_DEBUG_GUTS)
-ENDIF()
-
-# turn on symbol escape option
-IF(CGULL_USE_NAMESPACE)
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME} PUBLIC CGULL_USE_NAMESPACE)
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_STATIC} PUBLIC CGULL_USE_NAMESPACE)
-ENDIF()
-
-
-# export compatibility header
-CONFIGURE_FILE(
-    config.no_cmake.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/config.no_cmake.h
+install(
+    FILES ${PROJECT_BINARY_DIR}/${PROJECT_NAME}_export.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
 )
 
-# installing main libraries
-INSTALL(
-    TARGETS
-        ${PROJECT_NAME}
-        ${PROJECT_NAME_STATIC}
-    EXPORT  ${PROJECT_NAME}-config
-
-    RUNTIME DESTINATION  bin
-    LIBRARY DESTINATION  lib
-    ARCHIVE DESTINATION  lib
-    PUBLIC_HEADER DESTINATION   include
-    PRIVATE_HEADER DESTINATION  include/cgull
-)
-INSTALL(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/config.no_cmake.h
-    DESTINATION include/cgull
-)
-INSTALL(
-    EXPORT ${PROJECT_NAME}-config
+# install cmake rules
+install(
+    EXPORT ${PROJECT_NAME}Config
     NAMESPACE ${PROJECT_NAME}::
     DESTINATION lib/cmake
+    EXPORT_LINK_INTERFACE_LIBRARIES
 )
 
+if(ANDROID)
+    install(EXPORT_ANDROID_MK ${PROJECT_NAME}Config DESTINATION share/ndk-modules)
+endif()
 
-#################################################
-##                   qt spec
+# tests
+if(CGULL_BUILD_TESTS)
+    find_package(GTest)
+    find_package(Boost)
 
-SET(CMAKE_AUTOMOC ON)
-FIND_PACKAGE(Qt5Core QUIET)
+    if(TARGET GTest::gtest)# AND TARGET Boost::boost)
+        set(PROJECT_NAME_TESTS ${PROJECT_NAME}-tests)
 
-IF(Qt5Core_FOUND)
+        file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS  tests/*.h  tests/*.cpp)
 
-    #################################################
-    ##               qt spec shared
-
-    MAKE_LIB(${PROJECT_NAME_QT} SHARED ${GUTS_QT})
-
-    TARGET_LINK_LIBRARIES(${PROJECT_NAME_QT}
-        PRIVATE Qt5::Core )
-
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_QT}
-        PUBLIC CGULL_QT)
-
-    INSTALL(FILES ${GUTS_QT_H}
-        DESTINATION include/cgull/qt )
-    INSTALL(TARGETS ${PROJECT_NAME_QT}
-        DESTINATION lib
-        EXPORT ${PROJECT_NAME_QT}-config)
-
-
-    #################################################
-    ##               qt spec static
-
-    MAKE_LIB(${PROJECT_NAME_QT_STATIC} STATIC ${GUTS_QT})
-
-    TARGET_LINK_LIBRARIES(${PROJECT_NAME_QT_STATIC}
-        PRIVATE Qt5::Core )
-
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_QT_STATIC}
-        PUBLIC CGULL_QT)
-
-    INSTALL(TARGETS ${PROJECT_NAME_QT_STATIC}
-        DESTINATION lib
-        EXPORT ${PROJECT_NAME_QT}-config)
-
-
-    #################################################
-    ##               qt spec common
-
-    INSTALL(EXPORT ${PROJECT_NAME_QT}-config
-        NAMESPACE ${PROJECT_NAME}::
-        DESTINATION lib/cmake)
-
-ELSE()
-    MESSAGE(STATUS "Qt not found")
-ENDIF()
-
-
-#################################################
-##                   uv spec
-
-FIND_PACKAGE(UV QUIET)
-
-IF(UV_FOUND)
-
-    #################################################
-    ##               uv spec shared
-
-    MAKE_LIB(${PROJECT_NAME_UV} SHARED ${GUTS_UV})
-
-    TARGET_LINK_LIBRARIES(${PROJECT_NAME_UV}
-        PRIVATE uv::uv )
-
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_UV}
-        PUBLIC CGULL_UV)
-
-    INSTALL(FILES ${GUTS_UV_H}
-        DESTINATION include/cgull/uv )
-    INSTALL(TARGETS ${PROJECT_NAME_UV}
-        DESTINATION lib
-        EXPORT ${PROJECT_NAME_UV}-config)
-
-
-    #################################################
-    ##               uv spec static
-
-    MAKE_LIB(${PROJECT_NAME_UV_STATIC} STATIC ${GUTS_UV})
-
-    TARGET_LINK_LIBRARIES(${PROJECT_NAME_UV_STATIC}
-        PRIVATE Qt5::Core )
-
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_UV_STATIC}
-        PUBLIC CGULL_UV)
-
-    INSTALL(TARGETS ${PROJECT_NAME_UV_STATIC}
-        DESTINATION lib
-        EXPORT ${PROJECT_NAME_UV}-config)
-
-
-    #################################################
-    ##               uv spec common
-
-    INSTALL(EXPORT ${PROJECT_NAME_UV}-config
-        NAMESPACE ${PROJECT_NAME}::
-        DESTINATION lib/cmake)
-
-ELSE()
-    MESSAGE(STATUS "LibUV not found")
-ENDIF()
-
-
-#################################################
-##                    tests
-
-FIND_PACKAGE(GTest)
-FIND_PACKAGE(Boost)
-
-IF(GTEST_LIBRARIES AND GTEST_INCLUDE_DIRS AND Boost_FOUND)
-    SET(PROJECT_NAME_TESTS ${PROJECT_NAME}-tests)
-
-    ADD_EXECUTABLE(${PROJECT_NAME_TESTS} ${TESTS})
-
-    TARGET_INCLUDE_DIRECTORIES(${PROJECT_NAME_TESTS} PRIVATE ${GTEST_INCLUDE_DIRS})
-    TARGET_COMPILE_DEFINITIONS(${PROJECT_NAME_TESTS} PRIVATE GTEST_LANG_CXX11=1 GTEST_STDLIB_CXX11=1)
-    TARGET_LINK_LIBRARIES(
-            ${PROJECT_NAME}-tests
-        PUBLIC
-            ${PROJECT_NAME}
-            ${GTEST_LIBRARIES}
-            Threads::Threads
-            Boost::boost
+        add_executable(${PROJECT_NAME_TESTS}
+            ${TEST_SOURCES}
         )
 
-    IF(Qt5Core_FOUND)
-        TARGET_LINK_LIBRARIES(${PROJECT_NAME_TESTS} PRIVATE Qt5::Core)
-    ENDIF()
-ENDIF()
+        target_include_directories(${PROJECT_NAME_TESTS}
+            PRIVATE
+                ${GTEST_INCLUDE_DIRS}
+        )
+
+        target_compile_definitions(${PROJECT_NAME_TESTS}
+            PRIVATE
+                GTEST_LANG_CXX11=1
+                GTEST_STDLIB_CXX11=1
+        )
+
+        set_target_properties(${PROJECT_NAME_TESTS}
+            PROPERTIES
+                VS_DEBUGGER_WORKING_DIRECTORY "\$(OutDir)"
+
+                CXX_STANDARD_REQUIRED on
+                CXX_STANDARD 20
+        )
+
+        target_link_libraries(${PROJECT_NAME_TESTS}
+            PRIVATE
+                shared
+                # Boost::boost
+                GTest::gtest
+        )
+
+        add_test(
+            NAME ${PROJECT_NAME_TESTS}
+            COMMAND $<TARGET_FILE:${PROJECT_NAME_TESTS}>
+        )
+    endif()
+endif()
