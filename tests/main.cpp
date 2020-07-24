@@ -30,10 +30,3 @@ int main(int argc, char** argv)
 
 #include "tests.h"
 
-#if defined(CGULL_QT)
-#include "tests_qt.h"
-#endif
-
-#if defined(CGULL_UV)
-#include "tests_uv.h"
-#endif

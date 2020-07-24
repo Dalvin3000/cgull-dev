@@ -4,7 +4,7 @@
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS true
 #define _SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING true
 
-#include <Promise>
+#include <cgull/cgull.h>
 
 #include <deque>
 #include <chrono>
@@ -160,6 +160,94 @@ public:
     CGull::guts::SharedPtr<ThisIsPimplPrivate> _d;
 
 };
+
+#include <charconv>
+#include <array>
+
+extern "C"
+int call_c_function_test(void* _this, void (*callback)(void*, bool), bool fail = false)
+{
+    if(!fail)
+        callback(_this, ((intptr_t)_this) % 2);
+
+    return fail;
+};
+
+extern "C"
+void c_function_w_callback1(void* _this, void (*callback)(void*, bool))
+{
+    call_c_function_test(_this, callback);
+};
+
+extern "C"
+int c_function_w_callback4(void* _this, bool fail, void (*callback)(void*, bool))
+{
+    call_c_function_test(_this, callback, fail);
+
+    return fail;
+};
+
+
+TEST(async, wrap_c_callback)
+{
+    //! \todo int uv_queue_work(uv_loop_t* loop, uv_work_t* req, uv_work_cb work_cb, uv_after_work_cb after_work_cb)
+
+    const auto c_function_w_callback2 =
+        [](void* _this, int a, void (*callback)(void*, bool)) -> void
+        {
+            std::cout <<"a=" << a << '\n';
+            call_c_function_test(_this, callback);
+        };
+
+    [[maybe_unused]] const auto c_function_w_callback3 =
+        [](void* _this, void (*callback)(void*, bool)) -> int
+        {
+            call_c_function_test(_this, callback);
+
+            return 111;
+        };
+
+    const auto async_c_function_w_callback1 = CGULL_NAMESPACE::async{ c_function_w_callback1 };
+    const auto async_c_function_w_callback2 = CGULL_NAMESPACE::async{ c_function_w_callback2 };
+    const auto async_c_function_w_callback3 = CGULL_NAMESPACE::async{ c_function_w_callback3 };
+    const auto async_c_function_w_callback4 = CGULL_NAMESPACE::async{ c_function_w_callback4,
+        [](CGULL_NAMESPACE::promise p, int result, void* _this, bool fail, void (*)(void*, bool))
+        {
+            if(fail && result == 111)
+                p.reject(_this);
+
+            return fail;
+        }
+    };
+
+    //     int someValue = 3;
+
+#define P(e)                                    \
+    {                                           \
+        const auto p = e;                       \
+        const auto _p = p._private();           \
+                                                \
+        if(p.is_resolved())                     \
+            std::cout                           \
+                << "promise=" << _p.cdata()     \
+                << " value=" << (int)std::any_cast<void*>(p.value())<<'\n';     \
+        else                                    \
+            std::cout                           \
+            << "promise=" << _p.cdata()         \
+            << " rejected value=" << (int)std::any_cast<int>(p.value())<<'\n';     \
+    }
+
+    P(async_c_function_w_callback1((void*)1001));
+    P(async_c_function_w_callback1((void*)1002));
+    P(async_c_function_w_callback1((void*)1003));
+    P(async_c_function_w_callback2((void*)1004, 980));
+    P(async_c_function_w_callback3((void*)1005));
+    P(async_c_function_w_callback4((void*)1006, false));
+    P(async_c_function_w_callback4((void*)1007, true));
+
+
+}
+
 
 
 TEST(guts__Pimpl, base)
