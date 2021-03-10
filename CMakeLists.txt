@@ -4,7 +4,10 @@ set(CGULL_STATIC_SUFFIX "_s" CACHE STRING "Library suffix for static modules.")
 set(CGULL_SHARED_SUFFIX ""   CACHE STRING "Library suffix for shared modules.")
 set(CGULL_DEBUG_SUFFIX  "d"  CACHE STRING "Library suffix for debug modules.")
 
-option(CGULL_BUILD_TESTS "Tells CMake to generate targets for unit tests." on)
+option(CGULL_BUILD_TESTS "Tells CMake to generate targets for unit tests." off)
+option(CGULL_WITH_BOOST "Use boost." off)
+
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${CMAKE_CURRENT_BINARY_DIR})
 
 project(
     cgull
@@ -80,6 +83,9 @@ function(add_module_variation TARGET_NAME TYPE)
             CXX_VISIBILITY_PRESET      hidden
             VISIBILITY_INLINES_HIDDEN  on
 
+            LANGUAGES CXX
+            LINKER_LANGUAGE CXX
+
             VERSION  "${PROJECT_VERSION}"
     )
 
@@ -129,6 +135,7 @@ gather_sources(
     "src/*.cpp"
     "src/*.h"
     "include/cgull/*.h"
+    "include/cgull/*.hpp"
     "include/cgull/guts/*.h"
 )
 add_module_variation(static STATIC)
@@ -162,47 +169,48 @@ endif()
 
 # tests
 if(CGULL_BUILD_TESTS)
-    find_package(GTest)
-    find_package(Boost)
+    find_package(GTest CONFIG REQUIRED)
+    find_package(Boost CONFIG)
 
-    if(TARGET GTest::gtest)# AND TARGET Boost::boost)
-        set(PROJECT_NAME_TESTS ${PROJECT_NAME}-tests)
+    set(PROJECT_NAME_TESTS ${PROJECT_NAME}-tests)
 
-        file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS  tests/*.h  tests/*.cpp)
+    file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS  tests/*.h  tests/*.cpp)
 
-        add_executable(${PROJECT_NAME_TESTS}
-            ${TEST_SOURCES}
-        )
+    add_executable(${PROJECT_NAME_TESTS}
+        ${TEST_SOURCES}
+    )
 
-        target_include_directories(${PROJECT_NAME_TESTS}
-            PRIVATE
-                ${GTEST_INCLUDE_DIRS}
-        )
+    target_include_directories(${PROJECT_NAME_TESTS}
+        PRIVATE
+            ${GTEST_INCLUDE_DIRS}
+    )
 
-        target_compile_definitions(${PROJECT_NAME_TESTS}
-            PRIVATE
-                GTEST_LANG_CXX11=1
-                GTEST_STDLIB_CXX11=1
-        )
+    target_compile_definitions(${PROJECT_NAME_TESTS}
+        PRIVATE
+            GTEST_LANG_CXX11=1
+            GTEST_STDLIB_CXX11=1
+    )
 
-        set_target_properties(${PROJECT_NAME_TESTS}
-            PROPERTIES
-                VS_DEBUGGER_WORKING_DIRECTORY "\$(OutDir)"
+    set_target_properties(${PROJECT_NAME_TESTS}
+        PROPERTIES
+            VS_DEBUGGER_WORKING_DIRECTORY "\$(OutDir)"
 
-                CXX_STANDARD_REQUIRED on
-                CXX_STANDARD 20
-        )
+            CXX_STANDARD_REQUIRED on
+            CXX_STANDARD 20
+    )
 
-        target_link_libraries(${PROJECT_NAME_TESTS}
-            PRIVATE
-                shared
-                # Boost::boost
-                GTest::gtest
-        )
+    target_link_libraries(${PROJECT_NAME_TESTS}
+        PRIVATE
+            shared
+            GTest::gtest
+    )
 
-        add_test(
-            NAME ${PROJECT_NAME_TESTS}
-            COMMAND $<TARGET_FILE:${PROJECT_NAME_TESTS}>
-        )
+    if(TARGET Boost::Boost)
+        target_link_libraries(${PROJECT_NAME_TESTS} PRIVATE GTest::gtest)
     endif()
+
+    add_test(
+        NAME ${PROJECT_NAME_TESTS}
+        COMMAND $<TARGET_FILE:${PROJECT_NAME_TESTS}>
+    )
 endif()

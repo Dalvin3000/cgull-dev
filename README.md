@@ -1,13 +1,15 @@
 # CGull /ˈsiː.ɡʌl/
+
 Promises for C++17.
 
 Inspired by BlueBird.js.
 
-development repo
+development repo (WIP)
 
 ## Use cases
 
 Classic syntax:
+
 ```cpp
 inline auto uv_fs_open_async = cgull::async{ uv_fs_open };
 
